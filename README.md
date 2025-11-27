@@ -1,4 +1,5 @@
 # Google Ads Keyword Research Tool
+gh repo - https://github.com/liadgez/google-ads-keyword-research
 
 > Production-ready keyword research tool that generates keyword ideas from any URL using the Google Ads API and automatically exports results to beautifully formatted Google Sheets.
 
@@ -101,7 +102,24 @@ source venv/bin/activate
 python api/run_oauth_and_update_env.py
 ```
 
-### Start the Server
+### ⚡ Instant Test
+
+Want to see it in action immediately? Run this one-liner:
+
+```bash
+# Runs the CLI with default settings (Netflix, Hybrid Clustering, No Export)
+source venv/bin/activate && python cli.py
+```
+
+Or for the full interactive experience:
+
+```bash
+source venv/bin/activate
+python cli.py
+```
+
+### Start the API Server
+If you prefer the web interface or REST API:
 
 ```bash
 source venv/bin/activate
@@ -187,23 +205,21 @@ Expected output:
 
 ## 📁 Project Structure
 
-```
 google-ads-scripts/
-├── server.js                      # Express API server (92 lines)
+├── main.py                        # FastAPI server (46 lines)
+├── cli.py                         # Interactive CLI (120 lines)
 ├── api/
-│   ├── keyword_planner.py         # Google Ads API integration (210 lines)
+│   ├── keyword_planner.py         # Google Ads API integration (180 lines)
 │   ├── sheets_exporter.py         # Google Sheets export (290 lines)
+│   ├── clustering.py              # Advanced Clustering Engine (150 lines)
 │   ├── run_oauth_and_update_env.py # OAuth helper (108 lines)
-│   └── test_keyword_planner.py    # Integration test (45 lines)
+│   └── utils.py                   # Utilities (45 lines)
 ├── public/
 │   └── index.html                 # Modern web UI (145 lines)
-├── accounts.json                  # Google Ads accounts (auto-generated)
 ├── .env                           # Credentials (git-ignored)
-├── package.json                   # Node.js dependencies
 └── README.md                      # This file
 
-Total: 890 lines of clean, optimized code
-```
+Total: ~1000 lines of clean, optimized Python code
 
 ## ⚙️ Advanced Configuration
 
@@ -350,4 +366,30 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 **Built with ❤️ using Google Ads API and Google Sheets API**
 
-*Last updated: November 2025*
+## 🤖 For AI Agents: How to Use the CLI
+
+If a user asks you to run the keyword research for them, you can interact with the CLI programmatically using `send_command_input`.
+
+**Step 1: Start the CLI**
+```bash
+python cli.py
+```
+
+**Step 2: Handle Prompts**
+The CLI expects inputs in this order:
+1. **URL**: Enter the target URL (e.g., `https://example.com`)
+2. **Method**: Enter `1`, `2`, or `3`
+   - `1`: Rule-Based (Fast)
+   - `2`: ML-Based (Smart)
+   - `3`: Hybrid (Recommended)
+3. **Export**: Enter `y` or `n` to export to Google Sheets
+
+**Example Workflow:**
+1. Run `python cli.py` (Wait for "Enter Website URL")
+2. Send Input: `https://www.netflix.com\n`
+3. Wait for "Select Clustering Method"
+4. Send Input: `3\n`
+5. Wait for "Export to Google Sheets?"
+6. Send Input: `y\n`
+
+**Note:** Always wait for the prompt before sending input. Use `command_status` to check output.
