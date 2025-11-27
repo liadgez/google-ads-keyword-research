@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="Google Ads Keyword Research Tool - Generate keyword ideas with search volumes and export to Google Sheets" />
+  <title>Google Ads Keyword Research Tool</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 3rem;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+
+    label {
+      display: block;
+      color: #555;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    input[type="url"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .response-section {
+      margin-top: 2rem;
+    }
+
+    .response-section h2 {
+      color: #333;
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    pre {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 1rem;
+      overflow: auto;
+      max-height: 400px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .loading {
+      text-align: center;
+      color: #667eea;
+      font-weight: 500;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🔍 Keyword Research</h1>
+    <p class="subtitle">Powered by Google Ads API</p>
+
+    <form id="researchForm">
+      <label for="urlInput">Website URL</label>
+      <input type="url" id="urlInput" name="url" placeholder="https://example.com" required />
+      <button type="submit" id="submitBtn">Generate Keywords</button>
+    </form>
+
+    <div class="response-section">
+      <h2>Results</h2>
+      <pre id="response">Enter a URL above to start keyword research...</pre>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('researchForm');
+    const responseEl = document.getElementById('response');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('urlInput').value;
+
+      // Show loading state
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Generating Keywords...';
+      responseEl.textContent = 'Please wait... This may take 10-30 seconds.';
+      responseEl.className = 'loading';
+
+      try {
+        const res = await fetch('/keyword-research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+
+        // Format response
+        if (data.success) {
+          responseEl.textContent = `✅ Success! Found ${data.totalResults} keywords\n\n` +
+            `📄 Google Sheet: ${data.sheetUrl}\n\n` +
+            `Top 10 Keywords:\n` +
+            data.keywords.slice(0, 10).map((kw, i) =>
+              `${i + 1}. ${kw.keyword} - ${kw.avgMonthlySearches.toLocaleString()} searches/month`
+            ).join('\n');
+        } else {
+          responseEl.textContent = `❌ Error: ${data.error}`;
+        }
+        responseEl.className = '';
+      } catch (err) {
+        responseEl.textContent = '❌ Error: ' + err.message;
+        responseEl.className = '';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Generate Keywords';
+      }
+    });
+  </script>
+</body>
+
+</html>
