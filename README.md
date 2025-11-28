@@ -366,30 +366,48 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 **Built with ❤️ using Google Ads API and Google Sheets API**
 
-## 🤖 For AI Agents: How to Use the CLI
-
-If a user asks you to run the keyword research for them, you can interact with the CLI programmatically using `send_command_input`.
-
-**Step 1: Start the CLI**
+## 🤖 For AI Agents & Automation: How to Use the CLI
+ 
+You can run the CLI in two modes: **Interactive** (for humans) and **Non-Interactive** (for agents/scripts).
+ 
+### Option 1: Non-Interactive Mode (Recommended for Agents)
+ 
+Pass arguments directly to skip all prompts. This is the fastest and most reliable way for AI agents to use the tool.
+ 
 ```bash
-python cli.py
+# Syntax
+python cli.py --url <URL> --method <1|2|3> --export <y|n>
+ 
+# Example: Run Hybrid clustering on Walcott Radio and export to Sheets
+python cli.py --url https://www.walcottradio.com/ --method 3 --export y
 ```
-
-**Step 2: Handle Prompts**
-The CLI expects inputs in this order:
-1. **URL**: Enter the target URL (e.g., `https://example.com`)
+ 
+**Arguments:**
+- `--url`: Target website URL (required)
+- `--method`: Clustering algorithm (1=Rule, 2=ML, 3=Hybrid)
+- `--export`: Auto-export to Google Sheets (`y` or `n`)
+ 
+### Option 2: Interactive Mode
+ 
+If you run `python cli.py` without arguments, it will prompt for inputs interactively.
+ 
+1. **URL**: Enter the target URL
 2. **Method**: Enter `1`, `2`, or `3`
-   - `1`: Rule-Based (Fast)
-   - `2`: ML-Based (Smart)
-   - `3`: Hybrid (Recommended)
-3. **Export**: Enter `y` or `n` to export to Google Sheets
-
-**Example Workflow:**
-1. Run `python cli.py` (Wait for "Enter Website URL")
-2. Send Input: `https://www.netflix.com\n`
-3. Wait for "Select Clustering Method"
-4. Send Input: `3\n`
-5. Wait for "Export to Google Sheets?"
-6. Send Input: `y\n`
-
-**Note:** Always wait for the prompt before sending input. Use `command_status` to check output.
+3. **Export**: Enter `y` or `n`
+ 
+---
+ 
+## 🧠 Advanced Parallel Clustering
+ 
+The tool now runs **5 clustering algorithms in parallel** to give you deep insights into your keyword data. These are displayed in the "Overview" tab of the exported Google Sheet.
+ 
+| Method | Description | Example Output |
+|--------|-------------|----------------|
+| **Primary Cluster** | The main ad group (based on selected method) | "Cb Radio" |
+| **Volume Tier** | Groups by search volume (High/Medium/Low) | "High (500K+)" |
+| **Competition Tier** | Groups by competition level (High/Medium/Low) | "Medium (34-66)" |
+| **N-gram Pattern** | Identifies dominant word patterns | "cb_*" |
+| **Intent Type** | Classifies user intent | "Transactional" |
+| **LDA Topic** | (Coming Soon) Hidden topic modeling | "Topic 1" |
+ 
+This allows you to compare different grouping strategies side-by-side and pick the one that fits your campaign goals best.
