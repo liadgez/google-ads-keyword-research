@@ -21,6 +21,13 @@ class Cluster:
     name: str
     keywords: List[Dict]
     negative_candidates: List[str]
+    
+    # Parallel clustering results (added for comparison)
+    volume_tier: str = ""
+    competition_tier: str = ""
+    ngram_group: str = ""
+    intent_type: str = ""
+    lda_topic: str = ""
 
 class ClusteringEngine:
     def __init__(self):
@@ -169,6 +176,80 @@ class ClusteringEngine:
         # and we can enhance this with vector merging in the next iteration
         return initial_clusters
 
+    def _calculate_volume_tier(self, avg_searches: int) -> str:
+        """Calculate volume tier for a keyword"""
+        if avg_searches >= 500000:
+            return "High (500K+)"
+        elif avg_searches >= 10000:
+            return "Medium (10K-100K)"
+        else:
+            return "Low (<10K)"
+    
+    def _calculate_competition_tier(self, comp_index: int) -> str:
+        """Calculate competition tier for a keyword"""
+        if comp_index >= 67:
+            return "High (67-100)"
+        elif comp_index >= 34:
+            return "Medium (34-66)"
+        else:
+            return "Low (0-33)"
+    
+    def _extract_ngrams(self, keyword: str) -> str:
+        """Extract dominant n-gram pattern from keyword"""
+        words = keyword.lower().split()
+        if len(words) == 1:
+            return words[0]
+        # Return first bigram as the pattern
+        return f"{words[0]}_{words[1] if len(words) > 1 else ''}"
+    
+    def _classify_intent(self, keyword: str) -> str:
+        """Classify keyword intent based on patterns"""
+        kw_lower = keyword.lower()
+        
+        # Informational keywords
+        info_patterns = ['how to', 'what is', 'why', 'guide', 'tutorial', 'tips', 'learn']
+        if any(pattern in kw_lower for pattern in info_patterns):
+            return "Informational"
+        
+        # Transactional keywords
+        trans_patterns = ['buy', 'price', 'cost', 'cheap', 'deal', 'discount', 'shop', 'order', 'purchase']
+        if any(pattern in kw_lower for pattern in trans_patterns):
+            return "Transactional"
+        
+        # Commercial investigation
+        commercial_patterns = ['best', 'top', 'review', 'vs', 'compare', 'alternative']
+        if any(pattern in kw_lower for pattern in commercial_patterns):
+            return "Commercial"
+        
+        # Default to transactional for product-focused keywords
+        return "Transactional"
+    
+    def _apply_parallel_clustering(self, clusters: List[Cluster]) -> List[Cluster]:
+        """Apply all parallel clustering methods to existing clusters"""
+        for cluster in clusters:
+            if not cluster.keywords:
+                continue
+            
+            # Calculate average metrics for the cluster
+            avg_volume = sum(kw.get('avgMonthlySearches', 0) for kw in cluster.keywords) / len(cluster.keywords)
+            avg_comp = sum(kw.get('competitionIndex', 0) for kw in cluster.keywords) / len(cluster.keywords)
+            
+            # Apply tier-based clustering
+            cluster.volume_tier = self._calculate_volume_tier(int(avg_volume))
+            cluster.competition_tier = self._calculate_competition_tier(int(avg_comp))
+            
+            # N-gram analysis - use cluster name as the pattern
+            cluster.ngram_group = self._extract_ngrams(cluster.name)
+            
+            # Intent classification - classify based on first keyword
+            if cluster.keywords:
+                cluster.intent_type = self._classify_intent(cluster.keywords[0]['keyword'])
+            
+            # LDA topic - placeholder for now (will implement later)
+            cluster.lda_topic = "Topic TBD"
+        
+        return clusters
+
     def _format_results(self, clusters: Dict[str, List[Dict]], negatives: List[str]) -> List[Cluster]:
         results = []
         for name, items in clusters.items():
@@ -184,4 +265,8 @@ class ClusteringEngine:
         
         # Sort by cluster size (volume or count)
         results.sort(key=lambda x: len(x.keywords), reverse=True)
+        
+        # Apply parallel clustering methods
+        results = self._apply_parallel_clustering(results)
+        
         return results

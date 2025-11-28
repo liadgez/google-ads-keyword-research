@@ -11,7 +11,7 @@ from sheets_exporter import format_sheet, set_public_permission
 
 
 def create_and_export_clustered(clusters, url):
-    """
+   §     """
     Create a new sheet with clustered ad groups and export to multiple tabs
     
     Args:
@@ -33,22 +33,22 @@ def create_and_export_clustered(clusters, url):
         
         title = f"Ad Groups for {clean_url} - {date_str}"
         
-        # Prepare sheets structure
-        sheets_to_create = []
-        
-        # 1. Overview tab
-        sheets_to_create.append({
-            'properties': {
-                'title': 'Overview',
-                'gridProperties': {'frozenRowCount': 1}
-            }
-        })
-        
-        # 2. Negatives tab (if any negatives exist)
+        # Collect all negatives
         all_negatives = []
         for cluster in clusters:
             all_negatives.extend(cluster.negative_candidates)
         
+        # Prepare sheets structure - just 2-3 tabs
+        sheets_to_create = [
+            {
+                'properties': {
+                    'title': 'All Keywords',
+                    'gridProperties': {'frozenRowCount': 1}
+                }
+            }
+        ]
+        
+        # Add negatives tab if any exist
         if all_negatives:
             sheets_to_create.append({
                 'properties': {
@@ -58,28 +58,15 @@ def create_and_export_clustered(clusters, url):
                 }
             })
         
-        # 3. Top ad group tabs (limit to 15 to avoid too many tabs)
-        top_clusters = clusters[:15]
-        for cluster in top_clusters:
-            # Sanitize sheet name (max 100 chars, no special chars)
-            sheet_name = cluster.name[:50]
-            sheets_to_create.append({
-                'properties': {
-                    'title': sheet_name,
-                    'gridProperties': {'frozenRowCount': 1}
-                }
-            })
+        # Add summary tab
+        sheets_to_create.append({
+            'properties': {
+                'title': 'Summary',
+                'gridProperties': {'frozenRowCount': 1}
+            }
+        })
         
-        # 4. "Other Keywords" tab if there are more clusters
-        if len(clusters) > 15:
-            sheets_to_create.append({
-                'properties': {
-                    'title': 'Other Keywords',
-                    'gridProperties': {'frozenRowCount': 1}
-                }
-            })
-        
-        # Create spreadsheet with all tabs
+        # Create spreadsheet
         spreadsheet = {
             'properties': {'title': title},
             'sheets': sheets_to_create
@@ -94,22 +81,12 @@ def create_and_export_clustered(clusters, url):
         # Make it public
         set_public_permission(credentials, sheet_id)
         
-        # Export data to each tab
-        _export_overview_tab(service, sheet_id, clusters)
+        # Export data
+        _export_all_keywords_tab(service, sheet_id, clusters)
+        _export_summary_tab(service, sheet_id, clusters)
         
         if all_negatives:
             _export_negatives_tab(service, sheet_id, list(set(all_negatives)))
-        
-        for i, cluster in enumerate(top_clusters):
-            sheet_name = cluster.name[:50]
-            _export_cluster_tab(service, sheet_id, sheet_name, cluster.keywords)
-        
-        # Export remaining keywords to "Other Keywords" tab
-        if len(clusters) > 15:
-            other_keywords = []
-            for cluster in clusters[15:]:
-                other_keywords.extend(cluster.keywords)
-            _export_cluster_tab(service, sheet_id, 'Other Keywords', other_keywords)
         
         print(f"Exported {len(clusters)} ad groups to sheet", file=sys.stderr)
         
@@ -120,10 +97,56 @@ def create_and_export_clustered(clusters, url):
         return None
 
 
+def _export_all_keywords_tab(service, sheet_id, clusters):
+    """Export all keywords with Ad Group column"""
+    try:
+        headers = ['Ad Group', 'Keyword', 'Avg Monthly Searches', 'Competition', 'Competition Index', 'Low Bid ($)', 'High Bid ($)']
+        rows = [headers]
+        
+        # Add all keywords with their ad group name
+        for cluster in clusters:
+            for kw in cluster.keywords:
+                rows.append([
+                    cluster.name,
+                    kw.get('keyword', ''),
+                    kw.get('avgMonthlySearches', 0),
+                    kw.get('competition', ''),
+                    kw.get('competitionIndex', 0),
+                    kw.get('lowTopOfPageBid', 0),
+                    kw.get('highTopOfPageBid', 0)
+                ])
+        
+        body = {'values': rows}
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range='All Keywords!A1',
+            valueInputOption='RAW',
+            body=body
+        ).execute()
+        
+        # Format the sheet
+        _format_keywords_sheet(service, sheet_id, 'All Keywords', len(rows) - 1)
+        
+        print(f"Exported {len(rows)-1} keywords to 'All Keywords' tab", file=sys.stderr)
+        
+    except Exception as e:
+        print(f"Warning: Failed to export keywords: {e}", file=sys.stderr)
+
+
 def _export_overview_tab(service, sheet_id, clusters):
     """Export overview/summary of all clusters"""
     try:
-        headers = ['Ad Group Name', 'Keywords Count', 'Total Monthly Searches', 'Avg Competition']
+        headers = [
+            'Ad Group Name', 
+            'Keywords Count', 
+            'Total Monthly Searches', 
+            'Avg Competition',
+            'Volume Tier',
+            'Competition Tier',
+            'N-gram Pattern',
+            'Intent Type',
+            'LDA Topic'
+        ]
         rows = [headers]
         
         for cluster in clusters:
@@ -134,7 +157,12 @@ def _export_overview_tab(service, sheet_id, clusters):
                 cluster.name,
                 len(cluster.keywords),
                 total_volume,
-                round(avg_comp, 1)
+                round(avg_comp, 1),
+                cluster.volume_tier,
+                cluster.competition_tier,
+                cluster.ngram_group,
+                cluster.intent_type,
+                cluster.lda_topic
             ])
         
         body = {'values': rows}
@@ -149,6 +177,106 @@ def _export_overview_tab(service, sheet_id, clusters):
         
     except Exception as e:
         print(f"Warning: Failed to export overview: {e}", file=sys.stderr)
+
+
+def _format_keywords_sheet(service, sheet_id, sheet_name, num_keywords):
+    """Format the All Keywords sheet with Ad Group column"""
+    try:
+        # Get the actual sheet ID
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        target_sheet_id = None
+        
+        for sheet in spreadsheet.get('sheets', []):
+            if sheet['properties']['title'] == sheet_name:
+                target_sheet_id = sheet['properties']['sheetId']
+                break
+        
+        if target_sheet_id is None:
+            return
+        
+        requests = []
+        
+        # Format header row
+        requests.append({
+            'repeatCell': {
+                'range': {
+                    'sheetId': target_sheet_id,
+                    'startRowIndex': 0,
+                    'endRowIndex': 1
+                },
+                'cell': {
+                    'userEnteredFormat': {
+                        'backgroundColor': {'red': 0.2, 'green': 0.6, 'blue': 0.9},
+                        'textFormat': {
+                            'bold': True,
+                            'foregroundColor': {'red': 1.0, 'green': 1.0, 'blue': 1.0}
+                        }
+                    }
+                },
+                'fields': 'userEnteredFormat(backgroundColor,textFormat)'
+            }
+        })
+        
+        # Format number columns (C - Avg Monthly Searches)
+        requests.append({
+            'repeatCell': {
+                'range': {
+                    'sheetId': target_sheet_id,
+                    'startRowIndex': 1,
+                    'endRowIndex': num_keywords + 1,
+                    'startColumnIndex': 2,
+                    'endColumnIndex': 3
+                },
+                'cell': {
+                    'userEnteredFormat': {
+                        'numberFormat': {'type': 'NUMBER', 'pattern': '#,##0'}
+                    }
+                },
+                'fields': 'userEnteredFormat.numberFormat'
+            }
+        })
+        
+        # Format currency columns (F and G)
+        for col in [5, 6]:
+            requests.append({
+                'repeatCell': {
+                    'range': {
+                        'sheetId': target_sheet_id,
+                        'startRowIndex': 1,
+                        'endRowIndex': num_keywords + 1,
+                        'startColumnIndex': col,
+                        'endColumnIndex': col + 1
+                    },
+                    'cell': {
+                        'userEnteredFormat': {
+                            'numberFormat': {'type': 'CURRENCY', 'pattern': '$#,##0.00'}
+                        }
+                    },
+                    'fields': 'userEnteredFormat.numberFormat'
+                }
+            })
+        
+        # Auto-resize columns
+        requests.append({
+            'autoResizeDimensions': {
+                'dimensions': {
+                    'sheetId': target_sheet_id,
+                    'dimension': 'COLUMNS',
+                    'startIndex': 0,
+                    'endIndex': 7
+                }
+            }
+        })
+        
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={'requests': requests}
+        ).execute()
+        
+        print(f"Applied formatting to sheet '{sheet_name}'", file=sys.stderr)
+        
+    except Exception as e:
+        print(f"Warning: Failed to format sheet: {e}", file=sys.stderr)
 
 
 def _export_negatives_tab(service, sheet_id, negatives):
@@ -207,33 +335,3 @@ def _export_negatives_tab(service, sheet_id, negatives):
         
     except Exception as e:
         print(f"Warning: Failed to export negatives: {e}", file=sys.stderr)
-
-
-def _export_cluster_tab(service, sheet_id, sheet_name, keywords):
-    """Export keywords for a single cluster/ad group"""
-    try:
-        headers = ['Keyword', 'Avg Monthly Searches', 'Competition', 'Competition Index', 'Low Bid ($)', 'High Bid ($)']
-        rows = [headers]
-        
-        for kw in keywords:
-            rows.append([
-                kw.get('keyword', ''),
-                kw.get('avgMonthlySearches', 0),
-                kw.get('competition', ''),
-                kw.get('competitionIndex', 0),
-                kw.get('lowTopOfPageBid', 0),
-                kw.get('highTopOfPageBid', 0)
-            ])
-        
-        body = {'values': rows}
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range=f"'{sheet_name}'!A1",
-            valueInputOption='RAW',
-            body=body
-        ).execute()
-        
-        format_sheet(service, sheet_id, sheet_name, len(keywords))
-        
-    except Exception as e:
-        print(f"Warning: Failed to export cluster '{sheet_name}': {e}", file=sys.stderr)
