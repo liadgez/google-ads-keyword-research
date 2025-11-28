@@ -64,19 +64,37 @@ def display_clusters(clusters: List[Cluster]):
         rprint(f"\n[bold red]⚠️  Found {neg_count} Negative Keyword Candidates[/bold red]")
         rprint(f"[red]{', '.join(clusters[0].negative_candidates[:5])}...[/red]")
 
+import argparse
+
 def main():
+    parser = argparse.ArgumentParser(description="Google Ads Keyword Research CLI")
+    parser.add_argument("--url", help="Target website URL")
+    parser.add_argument("--method", type=int, choices=[1, 2, 3], help="Clustering method (1=Rule, 2=ML, 3=Hybrid)")
+    parser.add_argument("--export", choices=['y', 'n'], help="Auto-export to Sheets (y/n)")
+    
+    args = parser.parse_args()
+
     print_banner()
     
     # 1. Get Input
-    url = Prompt.ask("[bold green]Enter Website URL[/bold green]", default="https://www.netflix.com")
+    if args.url:
+        url = args.url
+        rprint(f"[bold green]Target URL:[/bold green] {url}")
+    else:
+        url = Prompt.ask("[bold green]Enter Website URL[/bold green]", default="https://www.netflix.com")
     
     # 2. Select Method
-    rprint("\n[bold yellow]Select Clustering Method:[/bold yellow]")
-    rprint("1. [cyan]The Strict Linguist[/cyan] (Rule-Based) - Fast, strict control")
-    rprint("2. [magenta]The Semantic Brain[/magenta] (ML-Based) - AI-powered intent grouping")
-    rprint("3. [green]The Hybrid Strategist[/green] (Recommended) - Best of both worlds")
-    
-    method_choice = IntPrompt.ask("Choice", choices=["1", "2", "3"], default=3)
+    if args.method:
+        method_choice = args.method
+        method_names = {1: "The Strict Linguist", 2: "The Semantic Brain", 3: "The Hybrid Strategist"}
+        rprint(f"[bold yellow]Selected Method:[/bold yellow] {method_names.get(method_choice)}")
+    else:
+        rprint("\n[bold yellow]Select Clustering Method:[/bold yellow]")
+        rprint("1. [cyan]The Strict Linguist[/cyan] (Rule-Based) - Fast, strict control")
+        rprint("2. [magenta]The Semantic Brain[/magenta] (ML-Based) - AI-powered intent grouping")
+        rprint("3. [green]The Hybrid Strategist[/green] (Recommended) - Best of both worlds")
+        
+        method_choice = IntPrompt.ask("Choice", choices=["1", "2", "3"], default=3)
     
     # 3. Fetch Keywords
     keywords = []
@@ -119,7 +137,13 @@ def main():
     display_clusters(clusters)
     
     # 6. Export
-    if Prompt.ask("\nExport to Google Sheets?", choices=["y", "n"], default="y") == "y":
+    should_export = False
+    if args.export:
+        should_export = (args.export == 'y')
+    else:
+        should_export = (Prompt.ask("\nExport to Google Sheets?", choices=["y", "n"], default="y") == "y")
+
+    if should_export:
         rprint("[italic]Exporting clustered ad groups...[/italic]")
         sheet_url = create_and_export_clustered(clusters, url)
         if sheet_url:
