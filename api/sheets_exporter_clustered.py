@@ -11,7 +11,7 @@ from sheets_exporter import format_sheet, set_public_permission
 
 
 def create_and_export_clustered(clusters, url):
-   §     """
+    """
     Create a new sheet with clustered ad groups and export to multiple tabs
     
     Args:
@@ -58,10 +58,10 @@ def create_and_export_clustered(clusters, url):
                 }
             })
         
-        # Add summary tab
+        # Add overview tab
         sheets_to_create.append({
             'properties': {
-                'title': 'Summary',
+                'title': 'Overview',
                 'gridProperties': {'frozenRowCount': 1}
             }
         })
@@ -81,9 +81,8 @@ def create_and_export_clustered(clusters, url):
         # Make it public
         set_public_permission(credentials, sheet_id)
         
-        # Export data
         _export_all_keywords_tab(service, sheet_id, clusters)
-        _export_summary_tab(service, sheet_id, clusters)
+        _export_overview_tab(service, sheet_id, clusters)
         
         if all_negatives:
             _export_negatives_tab(service, sheet_id, list(set(all_negatives)))
@@ -335,3 +334,7 @@ def _export_negatives_tab(service, sheet_id, negatives):
         
     except Exception as e:
         print(f"Warning: Failed to export negatives: {e}", file=sys.stderr)
+
+def _export_summary_tab(service, sheet_id, clusters):
+    """Export summary tab - same as overview"""
+    _export_overview_tab(service, sheet_id, clusters)
