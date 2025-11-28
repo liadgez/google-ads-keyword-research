@@ -21,6 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "api"))
 from keyword_planner import generate_keyword_ideas
 from clustering import ClusteringEngine, Cluster
 from sheets_exporter import create_and_export
+from sheets_exporter_clustered import create_and_export_clustered
 
 console = Console()
 
@@ -119,11 +120,8 @@ def main():
     
     # 6. Export
     if Prompt.ask("\nExport to Google Sheets?", choices=["y", "n"], default="y") == "y":
-        # We need to adapt the export function to handle clusters
-        # For now, we'll just export the raw list as before, 
-        # but in future we should create tabs per cluster
-        rprint("[italic]Exporting...[/italic]")
-        sheet_url = create_and_export(keywords, url)
+        rprint("[italic]Exporting clustered ad groups...[/italic]")
+        sheet_url = create_and_export_clustered(clusters, url)
         if sheet_url:
             rprint(f"[bold green]🚀 Exported:[/bold green] {sheet_url}")
         else:

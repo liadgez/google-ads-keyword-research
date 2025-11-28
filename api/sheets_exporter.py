@@ -106,7 +106,7 @@ def export_keywords(service, sheet_id, keywords):
         print(f"Exported {len(keywords)} keywords to sheet", file=sys.stderr)
         
         # Apply formatting
-        format_sheet(service, sheet_id, len(keywords))
+        format_sheet(service, sheet_id, 'Keyword Research', len(keywords))
         
         return True
         
@@ -117,23 +117,37 @@ def export_keywords(service, sheet_id, keywords):
         print(f"Unexpected error exporting keywords: {error}", file=sys.stderr)
         return False
 
-def format_sheet(service, sheet_id, num_keywords):
+def format_sheet(service, sheet_id, sheet_name, num_keywords):
     """
     Apply formatting to the sheet
     
     Args:
         service: Google Sheets API service
-        sheet_id: ID of the sheet
+        sheet_id: ID of the spreadsheet
+        sheet_name: Name of the sheet tab to format
         num_keywords: Number of keyword rows (for range)
     """
     try:
+        # Get the actual sheet ID for the named sheet
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        target_sheet_id = None
+        
+        for sheet in spreadsheet.get('sheets', []):
+            if sheet['properties']['title'] == sheet_name:
+                target_sheet_id = sheet['properties']['sheetId']
+                break
+        
+        if target_sheet_id is None:
+            print(f"Warning: Could not find sheet '{sheet_name}' for formatting", file=sys.stderr)
+            return
+        
         requests = []
         
         # Format header row (bold, background color)
         requests.append({
             'repeatCell': {
                 'range': {
-                    'sheetId': 0,
+                    'sheetId': target_sheet_id,
                     'startRowIndex': 0,
                     'endRowIndex': 1
                 },
@@ -162,7 +176,7 @@ def format_sheet(service, sheet_id, num_keywords):
         requests.append({
             'repeatCell': {
                 'range': {
-                    'sheetId': 0,
+                    'sheetId': target_sheet_id,
                     'startRowIndex': 1,
                     'endRowIndex': num_keywords + 1,
                     'startColumnIndex': 1,
@@ -185,7 +199,7 @@ def format_sheet(service, sheet_id, num_keywords):
             requests.append({
                 'repeatCell': {
                     'range': {
-                        'sheetId': 0,
+                        'sheetId': target_sheet_id,
                         'startRowIndex': 1,
                         'endRowIndex': num_keywords + 1,
                         'startColumnIndex': col,
@@ -207,7 +221,7 @@ def format_sheet(service, sheet_id, num_keywords):
         requests.append({
             'autoResizeDimensions': {
                 'dimensions': {
-                    'sheetId': 0,
+                    'sheetId': target_sheet_id,
                     'dimension': 'COLUMNS',
                     'startIndex': 0,
                     'endIndex': 6
@@ -225,7 +239,7 @@ def format_sheet(service, sheet_id, num_keywords):
             body=body
         ).execute()
         
-        print("Applied formatting to sheet", file=sys.stderr)
+        print(f"Applied formatting to sheet '{sheet_name}'", file=sys.stderr)
         
     except Exception as error:
         print(f"Warning: Failed to format sheet: {error}", file=sys.stderr)
