@@ -26,8 +26,6 @@ class Cluster:
     volume_tier: str = ""
     competition_tier: str = ""
     ngram_group: str = ""
-    intent_type: str = ""
-    lda_topic: str = ""
 
 class ClusteringEngine:
     def __init__(self):
@@ -202,28 +200,6 @@ class ClusteringEngine:
         # Return first bigram as the pattern
         return f"{words[0]}_{words[1] if len(words) > 1 else ''}"
     
-    def _classify_intent(self, keyword: str) -> str:
-        """Classify keyword intent based on patterns"""
-        kw_lower = keyword.lower()
-        
-        # Informational keywords
-        info_patterns = ['how to', 'what is', 'why', 'guide', 'tutorial', 'tips', 'learn']
-        if any(pattern in kw_lower for pattern in info_patterns):
-            return "Informational"
-        
-        # Transactional keywords
-        trans_patterns = ['buy', 'price', 'cost', 'cheap', 'deal', 'discount', 'shop', 'order', 'purchase']
-        if any(pattern in kw_lower for pattern in trans_patterns):
-            return "Transactional"
-        
-        # Commercial investigation
-        commercial_patterns = ['best', 'top', 'review', 'vs', 'compare', 'alternative']
-        if any(pattern in kw_lower for pattern in commercial_patterns):
-            return "Commercial"
-        
-        # Default to transactional for product-focused keywords
-        return "Transactional"
-    
     def _apply_parallel_clustering(self, clusters: List[Cluster]) -> List[Cluster]:
         """Apply all parallel clustering methods to existing clusters"""
         for cluster in clusters:
@@ -231,8 +207,17 @@ class ClusteringEngine:
                 continue
             
             # Calculate average metrics for the cluster
-            avg_volume = sum(kw.get('avgMonthlySearches', 0) for kw in cluster.keywords) / len(cluster.keywords)
-            avg_comp = sum(kw.get('competitionIndex', 0) for kw in cluster.keywords) / len(cluster.keywords)
+            # Optimization: Calculate sum and count once
+            total_volume = 0
+            total_comp = 0
+            count = len(cluster.keywords)
+            
+            for kw in cluster.keywords:
+                total_volume += kw.get('avgMonthlySearches', 0)
+                total_comp += kw.get('competitionIndex', 0)
+            
+            avg_volume = total_volume / count
+            avg_comp = total_comp / count
             
             # Apply tier-based clustering
             cluster.volume_tier = self._calculate_volume_tier(int(avg_volume))
@@ -240,13 +225,6 @@ class ClusteringEngine:
             
             # N-gram analysis - use cluster name as the pattern
             cluster.ngram_group = self._extract_ngrams(cluster.name)
-            
-            # Intent classification - classify based on first keyword
-            if cluster.keywords:
-                cluster.intent_type = self._classify_intent(cluster.keywords[0]['keyword'])
-            
-            # LDA topic - placeholder for now (will implement later)
-            cluster.lda_topic = "Topic TBD"
         
         return clusters
 

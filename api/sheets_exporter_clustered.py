@@ -142,9 +142,7 @@ def _export_overview_tab(service, sheet_id, clusters):
             'Avg Competition',
             'Volume Tier',
             'Competition Tier',
-            'N-gram Pattern',
-            'Intent Type',
-            'LDA Topic'
+            'N-gram Pattern'
         ]
         rows = [headers]
         
@@ -159,9 +157,7 @@ def _export_overview_tab(service, sheet_id, clusters):
                 round(avg_comp, 1),
                 cluster.volume_tier,
                 cluster.competition_tier,
-                cluster.ngram_group,
-                cluster.intent_type,
-                cluster.lda_topic
+                cluster.ngram_group
             ])
         
         body = {'values': rows}

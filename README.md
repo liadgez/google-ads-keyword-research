@@ -407,7 +407,5 @@ The tool now runs **5 clustering algorithms in parallel** to give you deep insig
 | **Volume Tier** | Groups by search volume (High/Medium/Low) | "High (500K+)" |
 | **Competition Tier** | Groups by competition level (High/Medium/Low) | "Medium (34-66)" |
 | **N-gram Pattern** | Identifies dominant word patterns | "cb_*" |
-| **Intent Type** | Classifies user intent | "Transactional" |
-| **LDA Topic** | (Coming Soon) Hidden topic modeling | "Topic 1" |
  
 This allows you to compare different grouping strategies side-by-side and pick the one that fits your campaign goals best.
