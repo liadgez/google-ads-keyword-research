@@ -29,84 +29,35 @@ class Cluster:
 
 class ClusteringEngine:
     def __init__(self):
-        # Comprehensive negative keyword list categorized by type
+        # Universal negative keyword list - works for ANY website/industry
+        # Only includes terms that nearly all businesses would want to exclude
         self.negative_categories = {
-            'testing': {
-                'test', 'testing', 'tester', 'qa', 'check', 'checks', 'checking', 'checklist', 
-                'analyzer', 'validator', 'evaluation', 'assessment', 'evaluate', 'analysis', 
-                'error', 'fix', 'inspection', 'inspections', 'monitoring', 'form', 'forms', 
-                'questionnaire', 'survey', 'grader', 'feedback'
-            },
-            'physical-accessibility': {
-                'ramp', 'ramps', 'wheelchair', 'handicap', 'bathroom', 'bathrooms', 'restroom', 'restrooms',
-                'toilet', 'toilets', 'shower', 'showers', 'sink', 'door', 'doors', 'elevator', 'elevators',
-                'lift', 'lifts', 'stair', 'stairs', 'staircase', 'stairway', 'handrail', 'grab', 'bar', 'bars',
-                'sidewalk', 'sidewalks', 'walkway', 'walkways', 'path', 'pathway', 'curb', 'threshold', 'thresholds',
-                'parking', 'building', 'buildings', 'office', 'offices', 'facility', 'facilities', 'store', 'stores',
-                'restaurant', 'restaurants', 'hotel', 'hotels', 'school', 'schools', 'university', 'college', 'campus',
-                'dorm', 'housing', 'residential', 'apartment', 'home', 'house', 'kitchen', 'bedroom', 'furniture',
-                'table', 'tables', 'chair', 'chairs', 'desk', 'counter', 'cabinet', 'appliance', 'stove', 'oven',
-                'refrigerator', 'dishwasher', 'laundry', 'washer', 'dryer', 'pool', 'pools', 'gym', 'playground',
-                'transportation', 'vehicle', 'car', 'bus', 'train', 'subway', 'aircraft', 'airplane', 'airport',
-                'boat', 'ship', 'ferry', 'yacht', 'canoe', 'kayak', 'raft', 'bicycle', 'scooter', 'motorcycle',
-                'truck', 'van', 'wagon', 'stroller', 'walker', 'crutch', 'cane', 'braille', 'sign', 'signage',
-                'construction', 'retrofit', 'slope', 'height', 'width', 'dimension', 'dimensions', 'specs',
-                'specifications', 'install', 'installation', 'contractor', 'architect', 'architecture'
-            },
-            'neg-brand': {
-                'accessibe', 'userway', 'siteimprove', 'audioeye', 'monsido', 'silktide', 'levelaccess', 
-                'deque', 'axe', 'wave', 'webaim', 'achecker', 'tenon', 'lighthouse', 'google', 'chrome', 
-                'aws', 'microsoft', 'amazon', 'facebook', 'twitter', 'linkedin', 'youtube', 'whatsapp',
-                'salesforce', 'oracle', 'sap', 'cisco', 'dell', 'ibm', 'adobe', 'wordpress', 'wix', 
-                'shopify', 'squarespace', 'webflow', 'elementor', 'divi', 'avada', 'theme', 'plugin',
-                'browserstack', 'equidox', 'recite', 'stark', 'allyant', 'maxaccess', 'intopia', 'radix',
-                'pa11y', 'tpgi', 'a11yquest', 'a11ywatch', 'axedevtools', 'commonlook', 'dubbot', 'microassist',
-                'wa11y', 'gtmetrix', 'figma', 'webiam', 'nvda', 'jaws', 'tableau', 'yuja', 'notion', 'qualtrics',
-                'reddit', 'grackle', 'acceable', 'accesswidget', 'editoria11y', 'sonarqube', 'accessify',
-                'servicenow', 'acsb', 'accessabke', 'docusign', 'esri', 'mailchimp', 'onix', 'slido',
-                'cengage', 'quora', 'ally', 'andi', 'evinced', 'frog', 'screaming', 'powerpoint', 'arc'
-            },
-            'layout': {
-                'design', 'designer', 'designers', 'designing', 'color', 'colors', 'contrast', 'font', 'fonts',
-                'layout', 'template', 'theme', 'style', 'css', 'html', 'code', 'coding', 'develop', 'developer',
-                'development', 'programming', 'script', 'scripts', 'api', 'sdk', 'library', 'framework', 'react',
-                'angular', 'vue', 'node', 'python', 'java', 'php', 'wordpress', 'plugin', 'widget', 'extension',
-                'addon', 'module', 'component', 'element', 'tag', 'attribute', 'property', 'value', 'input',
-                'button', 'link', 'image', 'video', 'audio', 'canvas', 'svg', 'icon', 'logo', 'banner', 'header',
-                'footer', 'sidebar', 'menu', 'nav', 'navigation', 'modal', 'popup', 'overlay', 'dialog', 'form',
-                'grid', 'flex', 'column', 'row', 'container', 'wrapper', 'section', 'article', 'aside', 'main',
-                'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'table', 'tr', 'td',
-                'th', 'thead', 'tbody', 'tfoot', 'caption', 'label', 'placeholder', 'alt', 'title', 'aria',
-                'role', 'state', 'screen', 'reader', 'zoom', 'magnify', 'resize', 'responsive', 'mobile',
-                'desktop', 'tablet', 'browser', 'chrome', 'firefox', 'safari', 'edge', 'ie', 'opera'
-            },
             'job': {
-                'job', 'jobs', 'career', 'careers', 'hiring', 'hire', 'employment', 'work', 'working',
-                'intern', 'internship', 'volunteer', 'volunteering', 'salary', 'wage', 'pay', 'compensation',
-                'benefits', 'resume', 'cv', 'cover letter', 'interview', 'recruiter', 'recruitment', 'staffing',
-                'agency', 'freelance', 'freelancer', 'contract', 'contractor', 'part-time', 'full-time',
-                'remote', 'hybrid', 'onsite', 'position', 'role', 'vacancy', 'opening', 'opportunity',
-                'training', 'course', 'class', 'certification', 'certificate', 'degree', 'diploma', 'learn',
-                'learning', 'study', 'studying', 'student', 'teacher', 'professor', 'instructor', 'tutor',
-                'school', 'university', 'college', 'bootcamp', 'workshop', 'seminar', 'conference', 'webinar'
+                'job', 'jobs', 'career', 'careers', 'hiring', 'hire', 'employment', 'employed',
+                'work', 'working', 'salary', 'salaries', 'wage', 'wages', 'pay', 'compensation',
+                'benefits', 'resume', 'cv', 'curriculum vitae', 'cover letter', 'interview', 'interviews',
+                'recruiter', 'recruitment', 'recruiting', 'staffing', 'headhunter', 
+                'freelance', 'freelancer', 'freelancing', 'contract', 'contractor', 'contracting',
+                'part-time', 'full-time', 'permanent', 'temporary', 'temp',
+                'remote work', 'work from home', 'wfh', 'hybrid work', 'onsite',
+                'position', 'positions', 'role', 'roles', 'vacancy', 'vacancies', 'opening', 'openings',
+                'opportunity', 'opportunities', 'employer', 'employee', 'intern', 'internship', 'internships',
+                'volunteer', 'volunteering', 'volunteers', 'apply', 'application', 'applications', 'applying'
             },
-            'info': {
-                'what', 'why', 'how', 'when', 'where', 'who', 'guide', 'guideline', 'guidelines', 'tutorial',
-                'manual', 'handbook', 'documentation', 'docs', 'reference', 'spec', 'specs', 'specification',
-                'standard', 'standards', 'regulation', 'regulations', 'law', 'laws', 'act', 'bill', 'legislation',
-                'policy', 'policies', 'rule', 'rules', 'requirement', 'requirements', 'criteria', 'compliance',
-                'conformance', 'definition', 'meaning', 'explanation', 'overview', 'summary', 'introduction',
-                'basics', 'advanced', 'tips', 'tricks', 'best practices', 'examples', 'samples', 'templates',
-                'resources', 'white paper', 'case study', 'report', 'statistics', 'stats', 'data', 'trends',
-                'news', 'blog', 'article', 'post', 'video', 'podcast', 'webinar', 'event', 'forum', 'community',
-                'discussion', 'question', 'answer', 'faq', 'help', 'support', 'contact', 'about', 'terms',
-                'privacy', 'legal', 'disclaimer', 'copyright', 'trademark', 'license', 'pricing', 'cost',
-                'price', 'plan', 'subscription', 'free', 'trial', 'demo', 'download', 'pdf', 'doc', 'docx',
-                'ppt', 'pptx', 'xls', 'xlsx', 'csv', 'txt', 'zip', 'rar', 'tar', 'gz'
+            'academic': {
+                'homework', 'assignment', 'assignments', 'project', 'projects', 
+                'essay', 'essays', 'paper', 'papers', 'thesis', 'theses', 'dissertation', 'dissertations',
+                'research paper', 'term paper', 'school project', 'class project', 'group project',
+                'student project', 'college project', 'university project',
+                'study guide', 'exam', 'test', 'quiz', 'midterm', 'final',
+                'coursework', 'syllabus', 'curriculum', 'textbook', 'lecture notes'
             },
-            'framework': {
-                'wcag', '508', 'ada', 'a11y', 'wai', 'w3c', 'aria', 'uaag', 'atag', 'cvaa', 'gdpr', 'ccpa',
-                'hipaa', 'pci', 'ferpa', 'copa', 'soca', 'iso', 'iec', 'ansi', 'ieee', 'nist', 'fedramp'
+            'piracy': {
+                'free download', 'free downloads', 'download free', 'downloads free',
+                'cracked', 'crack', 'cracks', 'cracking', 'pirated', 'pirate', 'piracy',
+                'torrent', 'torrents', 'torrenting', 'nulled', 'warez', 'keygen', 'keygens',
+                'serial key', 'serial keys', 'license key free', 'activation key free',
+                'full version free', 'premium free', 'pro free', 'unlock free'
             }
         }
         
