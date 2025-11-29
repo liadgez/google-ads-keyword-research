@@ -397,6 +397,29 @@ If you run `python cli.py` without arguments, it will prompt for inputs interact
  
 ---
  
+## 🚫 Universal Negative Keywords
+
+The tool includes a **Universal Negative Keyword System** that works for **any website** across any industry. It automatically filters out irrelevant traffic without requiring manual configuration.
+
+**Categories Filtered:**
+1.  **Job/Career:** `job`, `hiring`, `salary`, `resume`, `intern`, etc. (Filters job seekers)
+2.  **Academic:** `homework`, `assignment`, `thesis`, `essay`, etc. (Filters students)
+3.  **Piracy:** `free download`, `cracked`, `torrent`, `nulled`, etc. (Filters illegal downloads)
+
+**How it works:**
+- Negative keywords are identified during clustering.
+- They are **excluded** from ad groups.
+- They are exported to a separate **"Negative Keywords"** tab in the Google Sheet, complete with their category (e.g., "job").
+
+## 📊 Google Sheets Export
+
+The tool automatically creates a comprehensive Google Sheet with:
+1.  **All Keywords:** Full list with metrics and assigned Ad Groups.
+2.  **Overview:** Summary of all clusters, volume tiers, and competition levels.
+3.  **Negative Keywords:** List of excluded terms with their category.
+
+The sheet is automatically made **public** (view-only) for easy sharing.
+ 
 ## 🧠 Advanced Parallel Clustering
  
 The tool now runs **5 clustering algorithms in parallel** to give you deep insights into your keyword data. These are displayed in the "Overview" tab of the exported Google Sheet.
@@ -409,3 +432,4 @@ The tool now runs **5 clustering algorithms in parallel** to give you deep insig
 | **N-gram Pattern** | Identifies dominant word patterns | "cb_*" |
  
 This allows you to compare different grouping strategies side-by-side and pick the one that fits your campaign goals best.
+```

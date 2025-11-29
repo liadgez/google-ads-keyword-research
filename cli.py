@@ -6,7 +6,6 @@ Interactive terminal interface for keyword research and clustering.
 
 import sys
 import os
-import asyncio
 from typing import List, Dict
 from rich.console import Console
 from rich.prompt import Prompt, IntPrompt
@@ -20,7 +19,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "api"))
 
 from keyword_planner import generate_keyword_ideas
 from clustering import ClusteringEngine, Cluster
-from sheets_exporter import create_and_export
 from sheets_exporter_clustered import create_and_export_clustered
 
 console = Console()

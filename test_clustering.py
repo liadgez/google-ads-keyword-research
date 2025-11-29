@@ -12,7 +12,7 @@ def test_clustering():
         {'keyword': 'netflix login', 'avgMonthlySearches': 1000},
         {'keyword': 'netflix sign in', 'avgMonthlySearches': 800}, # Semantic match
         {'keyword': 'netflix log in', 'avgMonthlySearches': 500},  # Close variant
-        {'keyword': 'free netflix account', 'avgMonthlySearches': 100}, # Negative
+        {'keyword': 'netflix hiring', 'avgMonthlySearches': 100}, # Negative (Job)
         {'keyword': 'apple watch', 'avgMonthlySearches': 2000},
     ]
     
@@ -26,7 +26,14 @@ def test_clustering():
     print("\nTesting Negatives...")
     if clusters and clusters[0].negative_candidates:
         print(f"Negatives found: {clusters[0].negative_candidates}")
-        assert 'free netflix account' in clusters[0].negative_candidates
+        # Check for dictionary structure
+        neg_keywords = [n['keyword'] for n in clusters[0].negative_candidates]
+        assert 'netflix hiring' in neg_keywords
+        
+        # Verify category
+        for neg in clusters[0].negative_candidates:
+            if neg['keyword'] == 'netflix hiring':
+                assert neg['category'] == 'job'
         
     print("\n✅ Tests Passed")
 
