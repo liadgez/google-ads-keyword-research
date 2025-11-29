@@ -20,7 +20,7 @@ _sklearn_cluster = None
 class Cluster:
     name: str
     keywords: List[Dict]
-    negative_candidates: List[str]
+    negative_candidates: List[Dict]  # Changed from List[str] to List[Dict]
     
     # Parallel clustering results (added for comparison)
     volume_tier: str = ""
@@ -29,9 +29,89 @@ class Cluster:
 
 class ClusteringEngine:
     def __init__(self):
-        self.negative_terms = {'free', 'job', 'jobs', 'hiring', 'career', 'careers', 
-                              'repair', 'repairs', 'used', 'second hand', 'cheap', 
-                              'review', 'reviews', 'tutorial', 'how to'}
+        # Comprehensive negative keyword list categorized by type
+        self.negative_categories = {
+            'testing': {
+                'test', 'testing', 'tester', 'qa', 'check', 'checks', 'checking', 'checklist', 
+                'analyzer', 'validator', 'evaluation', 'assessment', 'evaluate', 'analysis', 
+                'error', 'fix', 'inspection', 'inspections', 'monitoring', 'form', 'forms', 
+                'questionnaire', 'survey', 'grader', 'feedback'
+            },
+            'physical-accessibility': {
+                'ramp', 'ramps', 'wheelchair', 'handicap', 'bathroom', 'bathrooms', 'restroom', 'restrooms',
+                'toilet', 'toilets', 'shower', 'showers', 'sink', 'door', 'doors', 'elevator', 'elevators',
+                'lift', 'lifts', 'stair', 'stairs', 'staircase', 'stairway', 'handrail', 'grab', 'bar', 'bars',
+                'sidewalk', 'sidewalks', 'walkway', 'walkways', 'path', 'pathway', 'curb', 'threshold', 'thresholds',
+                'parking', 'building', 'buildings', 'office', 'offices', 'facility', 'facilities', 'store', 'stores',
+                'restaurant', 'restaurants', 'hotel', 'hotels', 'school', 'schools', 'university', 'college', 'campus',
+                'dorm', 'housing', 'residential', 'apartment', 'home', 'house', 'kitchen', 'bedroom', 'furniture',
+                'table', 'tables', 'chair', 'chairs', 'desk', 'counter', 'cabinet', 'appliance', 'stove', 'oven',
+                'refrigerator', 'dishwasher', 'laundry', 'washer', 'dryer', 'pool', 'pools', 'gym', 'playground',
+                'transportation', 'vehicle', 'car', 'bus', 'train', 'subway', 'aircraft', 'airplane', 'airport',
+                'boat', 'ship', 'ferry', 'yacht', 'canoe', 'kayak', 'raft', 'bicycle', 'scooter', 'motorcycle',
+                'truck', 'van', 'wagon', 'stroller', 'walker', 'crutch', 'cane', 'braille', 'sign', 'signage',
+                'construction', 'retrofit', 'slope', 'height', 'width', 'dimension', 'dimensions', 'specs',
+                'specifications', 'install', 'installation', 'contractor', 'architect', 'architecture'
+            },
+            'neg-brand': {
+                'accessibe', 'userway', 'siteimprove', 'audioeye', 'monsido', 'silktide', 'levelaccess', 
+                'deque', 'axe', 'wave', 'webaim', 'achecker', 'tenon', 'lighthouse', 'google', 'chrome', 
+                'aws', 'microsoft', 'amazon', 'facebook', 'twitter', 'linkedin', 'youtube', 'whatsapp',
+                'salesforce', 'oracle', 'sap', 'cisco', 'dell', 'ibm', 'adobe', 'wordpress', 'wix', 
+                'shopify', 'squarespace', 'webflow', 'elementor', 'divi', 'avada', 'theme', 'plugin',
+                'browserstack', 'equidox', 'recite', 'stark', 'allyant', 'maxaccess', 'intopia', 'radix',
+                'pa11y', 'tpgi', 'a11yquest', 'a11ywatch', 'axedevtools', 'commonlook', 'dubbot', 'microassist',
+                'wa11y', 'gtmetrix', 'figma', 'webiam', 'nvda', 'jaws', 'tableau', 'yuja', 'notion', 'qualtrics',
+                'reddit', 'grackle', 'acceable', 'accesswidget', 'editoria11y', 'sonarqube', 'accessify',
+                'servicenow', 'acsb', 'accessabke', 'docusign', 'esri', 'mailchimp', 'onix', 'slido',
+                'cengage', 'quora', 'ally', 'andi', 'evinced', 'frog', 'screaming', 'powerpoint', 'arc'
+            },
+            'layout': {
+                'design', 'designer', 'designers', 'designing', 'color', 'colors', 'contrast', 'font', 'fonts',
+                'layout', 'template', 'theme', 'style', 'css', 'html', 'code', 'coding', 'develop', 'developer',
+                'development', 'programming', 'script', 'scripts', 'api', 'sdk', 'library', 'framework', 'react',
+                'angular', 'vue', 'node', 'python', 'java', 'php', 'wordpress', 'plugin', 'widget', 'extension',
+                'addon', 'module', 'component', 'element', 'tag', 'attribute', 'property', 'value', 'input',
+                'button', 'link', 'image', 'video', 'audio', 'canvas', 'svg', 'icon', 'logo', 'banner', 'header',
+                'footer', 'sidebar', 'menu', 'nav', 'navigation', 'modal', 'popup', 'overlay', 'dialog', 'form',
+                'grid', 'flex', 'column', 'row', 'container', 'wrapper', 'section', 'article', 'aside', 'main',
+                'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'table', 'tr', 'td',
+                'th', 'thead', 'tbody', 'tfoot', 'caption', 'label', 'placeholder', 'alt', 'title', 'aria',
+                'role', 'state', 'screen', 'reader', 'zoom', 'magnify', 'resize', 'responsive', 'mobile',
+                'desktop', 'tablet', 'browser', 'chrome', 'firefox', 'safari', 'edge', 'ie', 'opera'
+            },
+            'job': {
+                'job', 'jobs', 'career', 'careers', 'hiring', 'hire', 'employment', 'work', 'working',
+                'intern', 'internship', 'volunteer', 'volunteering', 'salary', 'wage', 'pay', 'compensation',
+                'benefits', 'resume', 'cv', 'cover letter', 'interview', 'recruiter', 'recruitment', 'staffing',
+                'agency', 'freelance', 'freelancer', 'contract', 'contractor', 'part-time', 'full-time',
+                'remote', 'hybrid', 'onsite', 'position', 'role', 'vacancy', 'opening', 'opportunity',
+                'training', 'course', 'class', 'certification', 'certificate', 'degree', 'diploma', 'learn',
+                'learning', 'study', 'studying', 'student', 'teacher', 'professor', 'instructor', 'tutor',
+                'school', 'university', 'college', 'bootcamp', 'workshop', 'seminar', 'conference', 'webinar'
+            },
+            'info': {
+                'what', 'why', 'how', 'when', 'where', 'who', 'guide', 'guideline', 'guidelines', 'tutorial',
+                'manual', 'handbook', 'documentation', 'docs', 'reference', 'spec', 'specs', 'specification',
+                'standard', 'standards', 'regulation', 'regulations', 'law', 'laws', 'act', 'bill', 'legislation',
+                'policy', 'policies', 'rule', 'rules', 'requirement', 'requirements', 'criteria', 'compliance',
+                'conformance', 'definition', 'meaning', 'explanation', 'overview', 'summary', 'introduction',
+                'basics', 'advanced', 'tips', 'tricks', 'best practices', 'examples', 'samples', 'templates',
+                'resources', 'white paper', 'case study', 'report', 'statistics', 'stats', 'data', 'trends',
+                'news', 'blog', 'article', 'post', 'video', 'podcast', 'webinar', 'event', 'forum', 'community',
+                'discussion', 'question', 'answer', 'faq', 'help', 'support', 'contact', 'about', 'terms',
+                'privacy', 'legal', 'disclaimer', 'copyright', 'trademark', 'license', 'pricing', 'cost',
+                'price', 'plan', 'subscription', 'free', 'trial', 'demo', 'download', 'pdf', 'doc', 'docx',
+                'ppt', 'pptx', 'xls', 'xlsx', 'csv', 'txt', 'zip', 'rar', 'tar', 'gz'
+            },
+            'framework': {
+                'wcag', '508', 'ada', 'a11y', 'wai', 'w3c', 'aria', 'uaag', 'atag', 'cvaa', 'gdpr', 'ccpa',
+                'hipaa', 'pci', 'ferpa', 'copa', 'soca', 'iso', 'iec', 'ansi', 'ieee', 'nist', 'fedramp'
+            }
+        }
+        
+        # Flatten for fast lookup
+        self.negative_terms = set().union(*self.negative_categories.values())
     
     def _load_ml_dependencies(self):
         """Lazy load ML libraries to keep startup fast for non-ML methods"""
@@ -42,10 +122,18 @@ class ClusteringEngine:
             _sentence_transformer = SentenceTransformer
             _sklearn_cluster = DBSCAN
 
-    def _is_negative(self, keyword: str) -> bool:
-        """Check if keyword contains negative terms"""
+    def _check_negative(self, keyword: str) -> Tuple[bool, str]:
+        """Check if keyword contains negative terms, return (is_negative, category)"""
         words = set(keyword.lower().split())
-        return bool(words & self.negative_terms)
+        for category, terms in self.negative_categories.items():
+            if words & terms:
+                return True, category
+        return False, ""
+
+    def _is_negative(self, keyword: str) -> bool:
+        """Legacy check for backward compatibility"""
+        is_neg, _ = self._check_negative(keyword)
+        return is_neg
 
     def _is_close_variant(self, kw1: str, kw2: str) -> bool:
         """
@@ -79,8 +167,9 @@ class ClusteringEngine:
             kw_text = kw_data['keyword']
             
             # 1. Negative Check
-            if self._is_negative(kw_text):
-                negatives.append(kw_text)
+            is_neg, category = self._check_negative(kw_text)
+            if is_neg:
+                negatives.append({'keyword': kw_text, 'category': category})
                 continue
                 
             if i in assigned:
@@ -120,10 +209,18 @@ class ClusteringEngine:
         self._load_ml_dependencies()
         
         kw_texts = [k['keyword'] for k in keywords]
-        negatives = [k for k in kw_texts if self._is_negative(k)]
         
-        # Filter out negatives for clustering
-        clean_kws = [k for k in keywords if not self._is_negative(k['keyword'])]
+        # Identify negatives
+        negatives = []
+        clean_kws = []
+        
+        for k in keywords:
+            is_neg, category = self._check_negative(k['keyword'])
+            if is_neg:
+                negatives.append({'keyword': k['keyword'], 'category': category})
+            else:
+                clean_kws.append(k)
+        
         clean_texts = [k['keyword'] for k in clean_kws]
         
         if not clean_texts:
@@ -228,7 +325,7 @@ class ClusteringEngine:
         
         return clusters
 
-    def _format_results(self, clusters: Dict[str, List[Dict]], negatives: List[str]) -> List[Cluster]:
+    def _format_results(self, clusters: Dict[str, List[Dict]], negatives: List[Dict]) -> List[Cluster]:
         results = []
         for name, items in clusters.items():
             # Volume Threshold (Hagakure Rule): Don't create micro-groups

@@ -35,8 +35,14 @@ def create_and_export_clustered(clusters, url):
         
         # Collect all negatives
         all_negatives = []
+        seen_negatives = set()
+        
         for cluster in clusters:
-            all_negatives.extend(cluster.negative_candidates)
+            for neg in cluster.negative_candidates:
+                # neg is now a dict {'keyword': 'foo', 'category': 'bar'}
+                if neg['keyword'] not in seen_negatives:
+                    all_negatives.append(neg)
+                    seen_negatives.add(neg['keyword'])
         
         # Prepare sheets structure - just 2-3 tabs
         sheets_to_create = [
@@ -85,7 +91,7 @@ def create_and_export_clustered(clusters, url):
         _export_overview_tab(service, sheet_id, clusters)
         
         if all_negatives:
-            _export_negatives_tab(service, sheet_id, list(set(all_negatives)))
+            _export_negatives_tab(service, sheet_id, all_negatives)
         
         print(f"Exported {len(clusters)} ad groups to sheet", file=sys.stderr)
         
@@ -275,13 +281,18 @@ def _format_keywords_sheet(service, sheet_id, sheet_name, num_keywords):
 
 
 def _export_negatives_tab(service, sheet_id, negatives):
-    """Export negative keywords with red highlighting"""
+    """Export negative keywords with categories and red highlighting"""
     try:
-        headers = ['Negative Keyword', 'Reason']
+        headers = ['Negative Keyword', 'Category', 'Reason']
         rows = [headers]
         
         for neg in negatives:
-            rows.append([neg, 'Contains flagged term'])
+            # neg is dict {'keyword': 'foo', 'category': 'bar'}
+            rows.append([
+                neg['keyword'], 
+                neg['category'],
+                f"Matches '{neg['category']}' list"
+            ])
         
         body = {'values': rows}
         service.spreadsheets().values().update(
