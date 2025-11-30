@@ -139,45 +139,89 @@ def _export_all_keywords_tab(service, sheet_id, clusters):
 
 
 def _export_overview_tab(service, sheet_id, clusters):
-    """Export overview/summary of all clusters"""
+    """Export dynamic Pivot Table overview"""
     try:
-        headers = [
-            'Ad Group Name', 
-            'Keywords Count', 
-            'Total Monthly Searches', 
-            'Avg Competition',
-            'Volume Tier',
-            'Competition Tier',
-            'N-gram Pattern'
-        ]
-        rows = [headers]
+        # 1. Get Sheet IDs
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        source_sheet_id = None
+        target_sheet_id = None
         
-        for cluster in clusters:
-            total_volume = sum(kw.get('avgMonthlySearches', 0) for kw in cluster.keywords)
-            avg_comp = sum(kw.get('competitionIndex', 0) for kw in cluster.keywords) / len(cluster.keywords) if cluster.keywords else 0
-            
-            rows.append([
-                cluster.name,
-                len(cluster.keywords),
-                total_volume,
-                round(avg_comp, 1),
-                cluster.volume_tier,
-                cluster.competition_tier,
-                cluster.ngram_group
-            ])
+        for sheet in spreadsheet.get('sheets', []):
+            title = sheet['properties']['title']
+            if title == 'All Keywords':
+                source_sheet_id = sheet['properties']['sheetId']
+            elif title == 'Overview':
+                target_sheet_id = sheet['properties']['sheetId']
         
-        body = {'values': rows}
-        service.spreadsheets().values().update(
+        if source_sheet_id is None or target_sheet_id is None:
+            print("Error: Could not find required sheets for Pivot Table", file=sys.stderr)
+            return
+
+        # 2. Define Pivot Table
+        requests = [{
+            'updateCells': {
+                'rows': [{
+                    'values': [{
+                        'pivotTable': {
+                            'source': {
+                                'sheetId': source_sheet_id,
+                                'startRowIndex': 0,
+                                'startColumnIndex': 0,
+                                'endColumnIndex': 7  # Columns A-G
+                            },
+                            'rows': [{
+                                'sourceColumnOffset': 0,  # Col A: Ad Group
+                                'showTotals': True,
+                                'sortOrder': 'ASCENDING'
+                            }],
+                            'values': [
+                                {
+                                    'summarizeFunction': 'COUNTA',
+                                    'sourceColumnOffset': 1,  # Col B: Keyword
+                                    'name': 'Keywords Count'
+                                },
+                                {
+                                    'summarizeFunction': 'SUM',
+                                    'sourceColumnOffset': 2,  # Col C: Volume
+                                    'name': 'Total Volume'
+                                },
+                                {
+                                    'summarizeFunction': 'AVERAGE',
+                                    'sourceColumnOffset': 4,  # Col E: Comp Index
+                                    'name': 'Avg Competition'
+                                },
+                                {
+                                    'summarizeFunction': 'AVERAGE',
+                                    'sourceColumnOffset': 5,  # Col F: Low Bid
+                                    'name': 'Avg CPC (Low)'
+                                },
+                                {
+                                    'summarizeFunction': 'AVERAGE',
+                                    'sourceColumnOffset': 6,  # Col G: High Bid
+                                    'name': 'Avg CPC (High)'
+                                }
+                            ]
+                        }
+                    }]
+                }],
+                'start': {
+                    'sheetId': target_sheet_id,
+                    'rowIndex': 0,
+                    'columnIndex': 0
+                },
+                'fields': 'pivotTable'
+            }
+        }]
+        
+        service.spreadsheets().batchUpdate(
             spreadsheetId=sheet_id,
-            range='Overview!A1',
-            valueInputOption='RAW',
-            body=body
+            body={'requests': requests}
         ).execute()
         
-        format_sheet(service, sheet_id, 'Overview', len(clusters))
+        print(f"Created Pivot Table in 'Overview' tab", file=sys.stderr)
         
     except Exception as e:
-        print(f"Warning: Failed to export overview: {e}", file=sys.stderr)
+        print(f"Warning: Failed to export pivot table: {e}", file=sys.stderr)
 
 
 def _format_keywords_sheet(service, sheet_id, sheet_name, num_keywords):

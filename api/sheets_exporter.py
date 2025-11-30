@@ -254,7 +254,7 @@ def set_public_permission(credentials, file_id):
         
         permission = {
             'type': 'anyone',
-            'role': 'reader',
+            'role': 'writer',
         }
         
         drive_service.permissions().create(

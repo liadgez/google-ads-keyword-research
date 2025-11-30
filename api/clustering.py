@@ -73,17 +73,18 @@ class ClusteringEngine:
             _sentence_transformer = SentenceTransformer
             _sklearn_cluster = DBSCAN
 
-    def _check_negative(self, keyword: str) -> Tuple[bool, str]:
-        """Check if keyword contains negative terms, return (is_negative, category)"""
+    def _check_negative(self, keyword: str) -> Tuple[bool, str, str]:
+        """Check if keyword contains negative terms, return (is_negative, category, term)"""
         words = set(keyword.lower().split())
         for category, terms in self.negative_categories.items():
-            if words & terms:
-                return True, category
-        return False, ""
+            intersection = words & terms
+            if intersection:
+                return True, category, list(intersection)[0]
+        return False, "", ""
 
     def _is_negative(self, keyword: str) -> bool:
         """Legacy check for backward compatibility"""
-        is_neg, _ = self._check_negative(keyword)
+        is_neg, _, _ = self._check_negative(keyword)
         return is_neg
 
     def _is_close_variant(self, kw1: str, kw2: str) -> bool:
@@ -118,10 +119,10 @@ class ClusteringEngine:
             kw_text = kw_data['keyword']
             
             # 1. Negative Check
-            is_neg, category = self._check_negative(kw_text)
+            is_neg, category, term = self._check_negative(kw_text)
             if is_neg:
-                negatives.append({'keyword': kw_text, 'category': category})
-                continue
+                negatives.append({'keyword': term, 'category': category})
+                # Do NOT exclude the keyword from clustering (User Request)
                 
             if i in assigned:
                 continue
@@ -166,11 +167,12 @@ class ClusteringEngine:
         clean_kws = []
         
         for k in keywords:
-            is_neg, category = self._check_negative(k['keyword'])
+            is_neg, category, term = self._check_negative(k['keyword'])
             if is_neg:
-                negatives.append({'keyword': k['keyword'], 'category': category})
-            else:
-                clean_kws.append(k)
+                negatives.append({'keyword': term, 'category': category})
+            
+            # Always include in clustering (User Request)
+            clean_kws.append(k)
         
         clean_texts = [k['keyword'] for k in clean_kws]
         
@@ -286,11 +288,15 @@ class ClusteringEngine:
             results.append(Cluster(
                 name=name.title(),
                 keywords=items,
-                negative_candidates=negatives if len(results) == 0 else [] # Attach negatives to first cluster for now
+                negative_candidates=[] # Initialize empty
             ))
         
         # Sort by cluster size (volume or count)
         results.sort(key=lambda x: len(x.keywords), reverse=True)
+        
+        # Attach negatives to the first cluster (now the largest)
+        if results and negatives:
+            results[0].negative_candidates = negatives
         
         # Apply parallel clustering methods
         results = self._apply_parallel_clustering(results)

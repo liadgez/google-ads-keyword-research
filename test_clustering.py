@@ -24,16 +24,26 @@ def test_clustering():
             print(f"  - {k['keyword']}")
             
     print("\nTesting Negatives...")
+    print(f"Cluster 0 Negatives: {clusters[0].negative_candidates}")
     if clusters and clusters[0].negative_candidates:
         print(f"Negatives found: {clusters[0].negative_candidates}")
-        # Check for dictionary structure
+        # Check for dictionary structure and SINGLE TERM
         neg_keywords = [n['keyword'] for n in clusters[0].negative_candidates]
-        assert 'netflix hiring' in neg_keywords
+        assert 'hiring' in neg_keywords  # Should be 'hiring', not 'netflix hiring'
         
         # Verify category
         for neg in clusters[0].negative_candidates:
-            if neg['keyword'] == 'netflix hiring':
+            if neg['keyword'] == 'hiring':
                 assert neg['category'] == 'job'
+
+    # Verify 'netflix hiring' is STILL in the clusters (not excluded)
+    all_clustered_kws = []
+    for c in clusters:
+        for k in c.keywords:
+            all_clustered_kws.append(k['keyword'])
+            
+    assert 'netflix hiring' in all_clustered_kws
+    print("✅ 'netflix hiring' was correctly kept in clusters")
         
     print("\n✅ Tests Passed")
 
