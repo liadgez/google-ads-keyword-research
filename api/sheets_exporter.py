@@ -4,56 +4,67 @@ Exports keyword research results to a new Google Sheet
 """
 
 import sys
-from datetime import datetime
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from utils import get_credentials
+from api.utils import get_credentials
+from api.sheets_utils import (
+    create_spreadsheet,
+    get_sheet_id_by_name,
+    format_header_row,
+    format_number_column,
+    format_currency_column,
+    auto_resize_columns,
+    apply_formatting,
+    set_public_permission,
+    write_data_to_sheet,
+    generate_sheet_title
+)
 
-def create_sheet(service, title):
+
+def create_and_export(keywords, url):
     """
-    Create a new Google Sheet
+    Create a new sheet and export keywords to it
     
     Args:
-        service: Google Sheets API service instance
-        title: Title for the sheet
+        keywords: List of keyword dictionaries
+        url: URL that was analyzed
     
     Returns:
-        dict with sheet_id and sheet_url, or None if failed
+        Sheet URL if successful, None if failed
     """
     try:
-        # Create the spreadsheet
-        spreadsheet = {
-            'properties': {
-                'title': title
-            },
-            'sheets': [{
-                'properties': {
-                    'title': 'Keyword Research',
-                    'gridProperties': {
-                        'frozenRowCount': 1  # Freeze header row
-                    }
-                }
-            }]
-        }
+        credentials = get_credentials()
+        service = build('sheets', 'v4', credentials=credentials)
         
-        result = service.spreadsheets().create(body=spreadsheet).execute()
+        # Create sheet title
+        title = generate_sheet_title("Keywords", url)
         
-        sheet_id = result['spreadsheetId']
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+        # Define sheet structure
+        sheet_configs = [
+            {'title': 'Keyword Research', 'frozen_rows': 1}
+        ]
         
-        print(f"Created sheet: {sheet_url}", file=sys.stderr)
+        # Create spreadsheet
+        sheet_info = create_spreadsheet(service, title, sheet_configs)
+        if not sheet_info:
+            return None
         
-        return {
-            'sheet_id': sheet_id,
-            'sheet_url': sheet_url
-        }
+        sheet_id = sheet_info['sheet_id']
         
-    except HttpError as error:
-        print(f"Failed to create sheet: {error}", file=sys.stderr)
+        # Make it public
+        set_public_permission(credentials, sheet_id)
+        
+        # Export keywords
+        success = export_keywords(service, sheet_id, keywords)
+        if not success:
+            return None
+        
+        return sheet_info['sheet_url']
+        
+    except Exception as e:
+        print(f"Error initializing Sheets service: {e}", file=sys.stderr)
         return None
-    except Exception as error:
-        print(f"Unexpected error creating sheet: {error}", file=sys.stderr)
-        return None
+
 
 def export_keywords(service, sheet_id, keywords):
     """
@@ -68,7 +79,7 @@ def export_keywords(service, sheet_id, keywords):
         True if successful, False otherwise
     """
     try:
-        # Prepare header row
+        # Prepare data
         headers = [
             'Keyword',
             'Avg Monthly Searches',
@@ -78,36 +89,34 @@ def export_keywords(service, sheet_id, keywords):
             'High Bid ($)'
         ]
         
-        # Prepare data rows
         rows = [headers]
         for kw in keywords:
-            row = [
+            rows.append([
                 kw.get('keyword', ''),
                 kw.get('avgMonthlySearches', 0),
                 kw.get('competition', ''),
                 kw.get('competitionIndex', 0),
                 kw.get('lowTopOfPageBid', 0),
                 kw.get('highTopOfPageBid', 0)
-            ]
-            rows.append(row)
+            ])
         
-        # Write data to sheet
-        body = {
-            'values': rows
-        }
-        
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range='Keyword Research!A1',
-            valueInputOption='RAW',
-            body=body
-        ).execute()
-        
-        print(f"Exported {len(keywords)} keywords to sheet", file=sys.stderr)
+        # Write data
+        write_data_to_sheet(service, sheet_id, 'Keyword Research', rows)
         
         # Apply formatting
-        format_sheet(service, sheet_id, 'Keyword Research', len(keywords))
+        internal_sheet_id = get_sheet_id_by_name(service, sheet_id, 'Keyword Research')
+        if internal_sheet_id is not None:
+            num_keywords = len(keywords)
+            requests = [
+                format_header_row(internal_sheet_id),
+                format_number_column(internal_sheet_id, 1, num_keywords),  # Avg Monthly Searches
+                format_currency_column(internal_sheet_id, 4, num_keywords),  # Low Bid
+                format_currency_column(internal_sheet_id, 5, num_keywords),  # High Bid
+                auto_resize_columns(internal_sheet_id, 0, 6)
+            ]
+            apply_formatting(service, sheet_id, 'Keyword Research', requests)
         
+        print(f"Exported {len(keywords)} keywords to sheet", file=sys.stderr)
         return True
         
     except HttpError as error:
@@ -117,199 +126,17 @@ def export_keywords(service, sheet_id, keywords):
         print(f"Unexpected error exporting keywords: {error}", file=sys.stderr)
         return False
 
+
+# Legacy function for backward compatibility
 def format_sheet(service, sheet_id, sheet_name, num_keywords):
     """
-    Apply formatting to the sheet
-    
-    Args:
-        service: Google Sheets API service
-        sheet_id: ID of the spreadsheet
-        sheet_name: Name of the sheet tab to format
-        num_keywords: Number of keyword rows (for range)
+    Legacy format_sheet function for backward compatibility
+    Redirects to new utilities
     """
-    try:
-        # Get the actual sheet ID for the named sheet
-        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        target_sheet_id = None
-        
-        for sheet in spreadsheet.get('sheets', []):
-            if sheet['properties']['title'] == sheet_name:
-                target_sheet_id = sheet['properties']['sheetId']
-                break
-        
-        if target_sheet_id is None:
-            print(f"Warning: Could not find sheet '{sheet_name}' for formatting", file=sys.stderr)
-            return
-        
-        requests = []
-        
-        # Format header row (bold, background color)
-        requests.append({
-            'repeatCell': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'startRowIndex': 0,
-                    'endRowIndex': 1
-                },
-                'cell': {
-                    'userEnteredFormat': {
-                        'backgroundColor': {
-                            'red': 0.2,
-                            'green': 0.6,
-                            'blue': 0.9
-                        },
-                        'textFormat': {
-                            'bold': True,
-                            'foregroundColor': {
-                                'red': 1.0,
-                                'green': 1.0,
-                                'blue': 1.0
-                            }
-                        }
-                    }
-                },
-                'fields': 'userEnteredFormat(backgroundColor,textFormat)'
-            }
-        })
-        
-        # Format number columns (B and D) - add thousand separators
-        requests.append({
-            'repeatCell': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'startRowIndex': 1,
-                    'endRowIndex': num_keywords + 1,
-                    'startColumnIndex': 1,
-                    'endColumnIndex': 2
-                },
-                'cell': {
-                    'userEnteredFormat': {
-                        'numberFormat': {
-                            'type': 'NUMBER',
-                            'pattern': '#,##0'
-                        }
-                    }
-                },
-                'fields': 'userEnteredFormat.numberFormat'
-            }
-        })
-        
-        # Format currency columns (E and F)
-        for col in [4, 5]:  # Columns E and F
-            requests.append({
-                'repeatCell': {
-                    'range': {
-                        'sheetId': target_sheet_id,
-                        'startRowIndex': 1,
-                        'endRowIndex': num_keywords + 1,
-                        'startColumnIndex': col,
-                        'endColumnIndex': col + 1
-                    },
-                    'cell': {
-                        'userEnteredFormat': {
-                            'numberFormat': {
-                                'type': 'CURRENCY',
-                                'pattern': '$#,##0.00'
-                            }
-                        }
-                    },
-                    'fields': 'userEnteredFormat.numberFormat'
-                }
-            })
-        
-        # Auto-resize all columns
-        requests.append({
-            'autoResizeDimensions': {
-                'dimensions': {
-                    'sheetId': target_sheet_id,
-                    'dimension': 'COLUMNS',
-                    'startIndex': 0,
-                    'endIndex': 6
-                }
-            }
-        })
-        
-        # Execute all formatting requests
-        body = {
-            'requests': requests
-        }
-        
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=sheet_id,
-            body=body
-        ).execute()
-        
-        print(f"Applied formatting to sheet '{sheet_name}'", file=sys.stderr)
-        
-    except Exception as error:
-        print(f"Warning: Failed to format sheet: {error}", file=sys.stderr)
-        # Don't fail if formatting fails - data is already there
-
-def set_public_permission(credentials, file_id):
-    """
-    Make the file accessible to anyone with the link
-    """
-    try:
-        drive_service = build('drive', 'v3', credentials=credentials)
-        
-        permission = {
-            'type': 'anyone',
-            'role': 'writer',
-        }
-        
-        drive_service.permissions().create(
-            fileId=file_id,
-            body=permission,
-            fields='id',
-        ).execute()
-        
-        print("✅ Sheet made public (anyone with link can view)", file=sys.stderr)
-        return True
-    except Exception as e:
-        print(f"Warning: Failed to set public permissions: {e}", file=sys.stderr)
-        return False
-
-def create_and_export(keywords, url):
-    """
-    Create a new sheet and export keywords to it
-    
-    Args:
-        keywords: List of keyword dictionaries
-        url: URL that was analyzed
-    
-    Returns:
-        Sheet URL if successful, None if failed
-    """
-    try:
-        # Initialize service once
-        credentials = get_credentials()
-        service = build('sheets', 'v4', credentials=credentials)
-        
-        # Create sheet title with URL and date
-        date_str = datetime.now().strftime('%Y-%m-%d')
-        # Clean URL for title (remove protocol, limit length)
-        clean_url = url.replace('https://', '').replace('http://', '').split('/')[0]
-        if len(clean_url) > 30:
-            clean_url = clean_url[:30] + '...'
-        
-        title = f"Keywords for {clean_url} - {date_str}"
-        
-        # Create the sheet
-        sheet_info = create_sheet(service, title)
-        if not sheet_info:
-            return None
-            
-        # Make it public
-        set_public_permission(credentials, sheet_info['sheet_id'])
-        
-        # Export keywords
-        success = export_keywords(service, sheet_info['sheet_id'], keywords)
-        if not success:
-            return None
-        
-        return sheet_info['sheet_url']
-        
-    except Exception as e:
-        print(f"Error initializing Sheets service: {e}", file=sys.stderr)
-        return None
-
+    internal_sheet_id = get_sheet_id_by_name(service, sheet_id, sheet_name)
+    if internal_sheet_id is not None:
+        requests = [
+            format_header_row(internal_sheet_id),
+            auto_resize_columns(internal_sheet_id, 0, 6)
+        ]
+        apply_formatting(service, sheet_id, sheet_name, requests)

@@ -4,10 +4,20 @@ Exports keyword clusters to multiple tabs with overview and negatives
 """
 
 import sys
-from datetime import datetime
 from googleapiclient.discovery import build
-from utils import get_credentials
-from sheets_exporter import format_sheet, set_public_permission
+from api.utils import get_credentials
+from api.sheets_utils import (
+    create_spreadsheet,
+    get_sheet_id_by_name,
+    format_header_row,
+    format_number_column,
+    format_currency_column,
+    auto_resize_columns,
+    apply_formatting,
+    set_public_permission,
+    write_data_to_sheet,
+    generate_sheet_title
+)
 
 
 def create_and_export_clustered(clusters, url):
@@ -26,12 +36,7 @@ def create_and_export_clustered(clusters, url):
         service = build('sheets', 'v4', credentials=credentials)
         
         # Create sheet title
-        date_str = datetime.now().strftime('%Y-%m-%d')
-        clean_url = url.replace('https://', '').replace('http://', '').split('/')[0]
-        if len(clean_url) > 30:
-            clean_url = clean_url[:30] + '...'
-        
-        title = f"Ad Groups for {clean_url} - {date_str}"
+        title = generate_sheet_title("Ad Groups", url)
         
         # Collect all negatives
         all_negatives = []
@@ -39,54 +44,35 @@ def create_and_export_clustered(clusters, url):
         
         for cluster in clusters:
             for neg in cluster.negative_candidates:
-                # neg is now a dict {'keyword': 'foo', 'category': 'bar'}
                 if neg['keyword'] not in seen_negatives:
                     all_negatives.append(neg)
                     seen_negatives.add(neg['keyword'])
         
-        # Prepare sheets structure - just 2-3 tabs
-        sheets_to_create = [
-            {
-                'properties': {
-                    'title': 'All Keywords',
-                    'gridProperties': {'frozenRowCount': 1}
-                }
-            }
+        # Define sheet structure
+        sheet_configs = [
+            {'title': 'All Keywords', 'frozen_rows': 1}
         ]
         
-        # Add negatives tab if any exist
         if all_negatives:
-            sheets_to_create.append({
-                'properties': {
-                    'title': 'Negative Keywords',
-                    'gridProperties': {'frozenRowCount': 1},
-                    'tabColor': {'red': 1.0, 'green': 0.0, 'blue': 0.0}
-                }
+            sheet_configs.append({
+                'title': 'Negative Keywords',
+                'frozen_rows': 1,
+                'tab_color': {'red': 1.0, 'green': 0.0, 'blue': 0.0}
             })
         
-        # Add overview tab
-        sheets_to_create.append({
-            'properties': {
-                'title': 'Overview',
-                'gridProperties': {'frozenRowCount': 1}
-            }
-        })
+        sheet_configs.append({'title': 'Overview', 'frozen_rows': 1})
         
         # Create spreadsheet
-        spreadsheet = {
-            'properties': {'title': title},
-            'sheets': sheets_to_create
-        }
+        sheet_info = create_spreadsheet(service, title, sheet_configs)
+        if not sheet_info:
+            return None
         
-        result = service.spreadsheets().create(body=spreadsheet).execute()
-        sheet_id = result['spreadsheetId']
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
-        
-        print(f"Created sheet: {sheet_url}", file=sys.stderr)
+        sheet_id = sheet_info['sheet_id']
         
         # Make it public
         set_public_permission(credentials, sheet_id)
         
+        # Export data
         _export_all_keywords_tab(service, sheet_id, clusters)
         _export_overview_tab(service, sheet_id, clusters)
         
@@ -95,7 +81,7 @@ def create_and_export_clustered(clusters, url):
         
         print(f"Exported {len(clusters)} ad groups to sheet", file=sys.stderr)
         
-        return sheet_url
+        return sheet_info['sheet_url']
         
     except Exception as e:
         print(f"Error creating clustered sheet: {e}", file=sys.stderr)
@@ -121,16 +107,21 @@ def _export_all_keywords_tab(service, sheet_id, clusters):
                     kw.get('highTopOfPageBid', 0)
                 ])
         
-        body = {'values': rows}
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range='All Keywords!A1',
-            valueInputOption='RAW',
-            body=body
-        ).execute()
+        # Write data
+        write_data_to_sheet(service, sheet_id, 'All Keywords', rows)
         
         # Format the sheet
-        _format_keywords_sheet(service, sheet_id, 'All Keywords', len(rows) - 1)
+        internal_sheet_id = get_sheet_id_by_name(service, sheet_id, 'All Keywords')
+        if internal_sheet_id is not None:
+            num_keywords = len(rows) - 1
+            requests = [
+                format_header_row(internal_sheet_id),
+                format_number_column(internal_sheet_id, 2, num_keywords),  # Avg Monthly Searches
+                format_currency_column(internal_sheet_id, 5, num_keywords),  # Low Bid
+                format_currency_column(internal_sheet_id, 6, num_keywords),  # High Bid
+                auto_resize_columns(internal_sheet_id, 0, 7)
+            ]
+            apply_formatting(service, sheet_id, 'All Keywords', requests)
         
         print(f"Exported {len(rows)-1} keywords to 'All Keywords' tab", file=sys.stderr)
         
@@ -141,23 +132,15 @@ def _export_all_keywords_tab(service, sheet_id, clusters):
 def _export_overview_tab(service, sheet_id, clusters):
     """Export dynamic Pivot Table overview"""
     try:
-        # 1. Get Sheet IDs
-        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        source_sheet_id = None
-        target_sheet_id = None
-        
-        for sheet in spreadsheet.get('sheets', []):
-            title = sheet['properties']['title']
-            if title == 'All Keywords':
-                source_sheet_id = sheet['properties']['sheetId']
-            elif title == 'Overview':
-                target_sheet_id = sheet['properties']['sheetId']
+        # Get Sheet IDs
+        source_sheet_id = get_sheet_id_by_name(service, sheet_id, 'All Keywords')
+        target_sheet_id = get_sheet_id_by_name(service, sheet_id, 'Overview')
         
         if source_sheet_id is None or target_sheet_id is None:
             print("Error: Could not find required sheets for Pivot Table", file=sys.stderr)
             return
 
-        # 2. Define Pivot Table
+        # Define Pivot Table
         requests = [{
             'updateCells': {
                 'rows': [{
@@ -224,106 +207,6 @@ def _export_overview_tab(service, sheet_id, clusters):
         print(f"Warning: Failed to export pivot table: {e}", file=sys.stderr)
 
 
-def _format_keywords_sheet(service, sheet_id, sheet_name, num_keywords):
-    """Format the All Keywords sheet with Ad Group column"""
-    try:
-        # Get the actual sheet ID
-        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        target_sheet_id = None
-        
-        for sheet in spreadsheet.get('sheets', []):
-            if sheet['properties']['title'] == sheet_name:
-                target_sheet_id = sheet['properties']['sheetId']
-                break
-        
-        if target_sheet_id is None:
-            return
-        
-        requests = []
-        
-        # Format header row
-        requests.append({
-            'repeatCell': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'startRowIndex': 0,
-                    'endRowIndex': 1
-                },
-                'cell': {
-                    'userEnteredFormat': {
-                        'backgroundColor': {'red': 0.2, 'green': 0.6, 'blue': 0.9},
-                        'textFormat': {
-                            'bold': True,
-                            'foregroundColor': {'red': 1.0, 'green': 1.0, 'blue': 1.0}
-                        }
-                    }
-                },
-                'fields': 'userEnteredFormat(backgroundColor,textFormat)'
-            }
-        })
-        
-        # Format number columns (C - Avg Monthly Searches)
-        requests.append({
-            'repeatCell': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'startRowIndex': 1,
-                    'endRowIndex': num_keywords + 1,
-                    'startColumnIndex': 2,
-                    'endColumnIndex': 3
-                },
-                'cell': {
-                    'userEnteredFormat': {
-                        'numberFormat': {'type': 'NUMBER', 'pattern': '#,##0'}
-                    }
-                },
-                'fields': 'userEnteredFormat.numberFormat'
-            }
-        })
-        
-        # Format currency columns (F and G)
-        for col in [5, 6]:
-            requests.append({
-                'repeatCell': {
-                    'range': {
-                        'sheetId': target_sheet_id,
-                        'startRowIndex': 1,
-                        'endRowIndex': num_keywords + 1,
-                        'startColumnIndex': col,
-                        'endColumnIndex': col + 1
-                    },
-                    'cell': {
-                        'userEnteredFormat': {
-                            'numberFormat': {'type': 'CURRENCY', 'pattern': '$#,##0.00'}
-                        }
-                    },
-                    'fields': 'userEnteredFormat.numberFormat'
-                }
-            })
-        
-        # Auto-resize columns
-        requests.append({
-            'autoResizeDimensions': {
-                'dimensions': {
-                    'sheetId': target_sheet_id,
-                    'dimension': 'COLUMNS',
-                    'startIndex': 0,
-                    'endIndex': 7
-                }
-            }
-        })
-        
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=sheet_id,
-            body={'requests': requests}
-        ).execute()
-        
-        print(f"Applied formatting to sheet '{sheet_name}'", file=sys.stderr)
-        
-    except Exception as e:
-        print(f"Warning: Failed to format sheet: {e}", file=sys.stderr)
-
-
 def _export_negatives_tab(service, sheet_id, negatives):
     """Export negative keywords with categories and red highlighting"""
     try:
@@ -331,59 +214,42 @@ def _export_negatives_tab(service, sheet_id, negatives):
         rows = [headers]
         
         for neg in negatives:
-            # neg is dict {'keyword': 'foo', 'category': 'bar'}
             rows.append([
                 neg['keyword'], 
                 neg['category'],
                 f"Matches '{neg['category']}' list"
             ])
         
-        body = {'values': rows}
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range='Negative Keywords!A1',
-            valueInputOption='RAW',
-            body=body
-        ).execute()
+        # Write data
+        write_data_to_sheet(service, sheet_id, 'Negative Keywords', rows)
         
-        # Get sheet ID for formatting
-        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        neg_sheet_id = None
-        for sheet in spreadsheet.get('sheets', []):
-            if sheet['properties']['title'] == 'Negative Keywords':
-                neg_sheet_id = sheet['properties']['sheetId']
-                break
-        
-        if neg_sheet_id is not None:
-            # Format with red background
-            requests = [{
-                'repeatCell': {
-                    'range': {
-                        'sheetId': neg_sheet_id,
-                        'startRowIndex': 1,
-                        'endRowIndex': len(negatives) + 1
-                    },
-                    'cell': {
-                        'userEnteredFormat': {
-                            'backgroundColor': {
-                                'red': 1.0,
-                                'green': 0.8,
-                                'blue': 0.8
+        # Format with red background
+        internal_sheet_id = get_sheet_id_by_name(service, sheet_id, 'Negative Keywords')
+        if internal_sheet_id is not None:
+            requests = [
+                format_header_row(internal_sheet_id),
+                {
+                    'repeatCell': {
+                        'range': {
+                            'sheetId': internal_sheet_id,
+                            'startRowIndex': 1,
+                            'endRowIndex': len(negatives) + 1
+                        },
+                        'cell': {
+                            'userEnteredFormat': {
+                                'backgroundColor': {
+                                    'red': 1.0,
+                                    'green': 0.8,
+                                    'blue': 0.8
+                                }
                             }
-                        }
-                    },
-                    'fields': 'userEnteredFormat.backgroundColor'
-                }
-            }]
-            
-            service.spreadsheets().batchUpdate(
-                spreadsheetId=sheet_id,
-                body={'requests': requests}
-            ).execute()
-        
-        format_sheet(service, sheet_id, 'Negative Keywords', len(negatives))
+                        },
+                        'fields': 'userEnteredFormat.backgroundColor'
+                    }
+                },
+                auto_resize_columns(internal_sheet_id, 0, 3)
+            ]
+            apply_formatting(service, sheet_id, 'Negative Keywords', requests)
         
     except Exception as e:
         print(f"Warning: Failed to export negatives: {e}", file=sys.stderr)
-
-

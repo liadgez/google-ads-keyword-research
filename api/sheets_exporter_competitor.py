@@ -4,10 +4,19 @@ Exports competitor analysis results to a new Google Sheet
 """
 
 import sys
-from datetime import datetime
 from googleapiclient.discovery import build
 from api.utils import get_credentials
-from api.sheets_exporter import set_public_permission
+from api.sheets_utils import (
+    create_spreadsheet,
+    get_sheet_id_by_name,
+    format_header_row,
+    auto_resize_columns,
+    apply_formatting,
+    set_public_permission,
+    write_data_to_sheet,
+    generate_sheet_title
+)
+
 
 def create_and_export_competitor_analysis(result):
     """
@@ -24,48 +33,31 @@ def create_and_export_competitor_analysis(result):
         service = build('sheets', 'v4', credentials=credentials)
         
         # Create sheet title
-        date_str = datetime.now().strftime('%Y-%m-%d')
-        brand_name = result.brand_info.brandName
-        title = f"Competitor Analysis: {brand_name} - {date_str}"
+        title = generate_sheet_title("Competitor Analysis", result.brand_info.brandName)
         
-        # Prepare sheets structure
-        sheets_to_create = [
-            {
-                'properties': {
-                    'title': 'Competitors',
-                    'gridProperties': {'frozenRowCount': 1}
-                }
-            },
-            {
-                'properties': {
-                    'title': 'Market Insight',
-                    'gridProperties': {'frozenRowCount': 1}
-                }
-            }
+        # Define sheet structure
+        sheet_configs = [
+            {'title': 'Competitors', 'frozen_rows': 1},
+            {'title': 'Market Insight', 'frozen_rows': 1}
         ]
         
         # Create spreadsheet
-        spreadsheet = {
-            'properties': {'title': title},
-            'sheets': sheets_to_create
-        }
+        sheet_info = create_spreadsheet(service, title, sheet_configs)
+        if not sheet_info:
+            return None
         
-        result_sheet = service.spreadsheets().create(body=spreadsheet).execute()
-        sheet_id = result_sheet['spreadsheetId']
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
-        
-        print(f"Created sheet: {sheet_url}", file=sys.stderr)
+        sheet_id = sheet_info['sheet_id']
         
         # Make it public
         set_public_permission(credentials, sheet_id)
         
-        # Export Data
+        # Export data
         _export_competitors_tab(service, sheet_id, result.competitors)
         _export_insight_tab(service, sheet_id, result)
         
         print(f"Exported {len(result.competitors)} competitors to sheet", file=sys.stderr)
         
-        return sheet_url
+        return sheet_info['sheet_url']
         
     except Exception as e:
         print(f"Error creating competitor sheet: {e}", file=sys.stderr)
@@ -75,6 +67,7 @@ def create_and_export_competitor_analysis(result):
 def _export_competitors_tab(service, sheet_id, competitors):
     """Export competitors list"""
     try:
+        # Prepare data
         headers = ['Name', 'Domain', 'Confidence', 'Services', 'Description', 'URL']
         rows = [headers]
         
@@ -88,16 +81,17 @@ def _export_competitors_tab(service, sheet_id, competitors):
                 comp.url
             ])
         
-        body = {'values': rows}
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range='Competitors!A1',
-            valueInputOption='RAW',
-            body=body
-        ).execute()
+        # Write data
+        write_data_to_sheet(service, sheet_id, 'Competitors', rows)
         
-        # Format the sheet
-        _format_competitors_sheet(service, sheet_id, 'Competitors', len(rows) - 1)
+        # Format
+        internal_sheet_id = get_sheet_id_by_name(service, sheet_id, 'Competitors')
+        if internal_sheet_id is not None:
+            requests = [
+                format_header_row(internal_sheet_id),
+                auto_resize_columns(internal_sheet_id, 0, 6)
+            ]
+            apply_formatting(service, sheet_id, 'Competitors', requests)
         
     except Exception as e:
         print(f"Warning: Failed to export competitors: {e}", file=sys.stderr)
@@ -116,152 +110,83 @@ def _export_insight_tab(service, sheet_id, result):
             [result.market_insight, '']
         ]
         
-        body = {'values': rows}
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range='Market Insight!A1',
-            valueInputOption='RAW',
-            body=body
-        ).execute()
+        # Write data
+        write_data_to_sheet(service, sheet_id, 'Market Insight', rows)
         
-        # Format Insight Sheet
-        _format_insight_sheet(service, sheet_id, 'Market Insight')
+        # Format
+        internal_sheet_id = get_sheet_id_by_name(service, sheet_id, 'Market Insight')
+        if internal_sheet_id is not None:
+            requests = [
+                # Bold headers
+                {
+                    'repeatCell': {
+                        'range': {
+                            'sheetId': internal_sheet_id,
+                            'startRowIndex': 0,
+                            'endRowIndex': 1,
+                            'startColumnIndex': 0,
+                            'endColumnIndex': 1
+                        },
+                        'cell': {
+                            'userEnteredFormat': {
+                                'textFormat': {'bold': True, 'fontSize': 12}
+                            }
+                        },
+                        'fields': 'userEnteredFormat(textFormat)'
+                    }
+                },
+                {
+                    'repeatCell': {
+                        'range': {
+                            'sheetId': internal_sheet_id,
+                            'startRowIndex': 5,
+                            'endRowIndex': 6,
+                            'startColumnIndex': 0,
+                            'endColumnIndex': 1
+                        },
+                        'cell': {
+                            'userEnteredFormat': {
+                                'textFormat': {'bold': True, 'fontSize': 12}
+                            }
+                        },
+                        'fields': 'userEnteredFormat(textFormat)'
+                    }
+                },
+                # Wrap text for insight
+                {
+                    'repeatCell': {
+                        'range': {
+                            'sheetId': internal_sheet_id,
+                            'startRowIndex': 6,
+                            'endRowIndex': 7,
+                            'startColumnIndex': 0,
+                            'endColumnIndex': 1
+                        },
+                        'cell': {
+                            'userEnteredFormat': {
+                                'wrapStrategy': 'WRAP'
+                            }
+                        },
+                        'fields': 'userEnteredFormat.wrapStrategy'
+                    }
+                },
+                # Resize column A
+                {
+                    'updateDimensionProperties': {
+                        'range': {
+                            'sheetId': internal_sheet_id,
+                            'dimension': 'COLUMNS',
+                            'startIndex': 0,
+                            'endIndex': 1
+                        },
+                        'properties': {
+                            'pixelSize': 600
+                        },
+                        'fields': 'pixelSize'
+                    }
+                }
+            ]
+            apply_formatting(service, sheet_id, 'Market Insight', requests)
         
     except Exception as e:
         print(f"Warning: Failed to export insight: {e}", file=sys.stderr)
-
-
-def _format_competitors_sheet(service, sheet_id, sheet_name, num_rows):
-    """Format the Competitors sheet"""
-    try:
-        # Get sheet ID
-        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        target_sheet_id = None
-        for sheet in spreadsheet.get('sheets', []):
-            if sheet['properties']['title'] == sheet_name:
-                target_sheet_id = sheet['properties']['sheetId']
-                break
-        
-        if target_sheet_id is None: return
-        
-        requests = []
-        
-        # Header formatting
-        requests.append({
-            'repeatCell': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'startRowIndex': 0,
-                    'endRowIndex': 1
-                },
-                'cell': {
-                    'userEnteredFormat': {
-                        'backgroundColor': {'red': 0.2, 'green': 0.6, 'blue': 0.9},
-                        'textFormat': {
-                            'bold': True,
-                            'foregroundColor': {'red': 1.0, 'green': 1.0, 'blue': 1.0}
-                        }
-                    }
-                },
-                'fields': 'userEnteredFormat(backgroundColor,textFormat)'
-            }
-        })
-        
-        # Auto-resize columns
-        requests.append({
-            'autoResizeDimensions': {
-                'dimensions': {
-                    'sheetId': target_sheet_id,
-                    'dimension': 'COLUMNS',
-                    'startIndex': 0,
-                    'endIndex': 6
-                }
-            }
-        })
-        
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=sheet_id,
-            body={'requests': requests}
-        ).execute()
-        
-    except Exception as e:
-        print(f"Warning: Failed to format competitors sheet: {e}", file=sys.stderr)
-
-
-def _format_insight_sheet(service, sheet_id, sheet_name):
-    """Format the Insight sheet"""
-    try:
-        # Get sheet ID
-        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        target_sheet_id = None
-        for sheet in spreadsheet.get('sheets', []):
-            if sheet['properties']['title'] == sheet_name:
-                target_sheet_id = sheet['properties']['sheetId']
-                break
-        
-        if target_sheet_id is None: return
-        
-        requests = []
-        
-        # Bold headers (Rows 1, 6)
-        for row_idx in [0, 5]:
-            requests.append({
-                'repeatCell': {
-                    'range': {
-                        'sheetId': target_sheet_id,
-                        'startRowIndex': row_idx,
-                        'endRowIndex': row_idx + 1,
-                        'startColumnIndex': 0,
-                        'endColumnIndex': 1
-                    },
-                    'cell': {
-                        'userEnteredFormat': {
-                            'textFormat': {'bold': True, 'fontSize': 12}
-                        }
-                    },
-                    'fields': 'userEnteredFormat(textFormat)'
-                }
-            })
-            
-        # Wrap text for insight
-        requests.append({
-            'repeatCell': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'startRowIndex': 6,
-                    'endRowIndex': 7,
-                    'startColumnIndex': 0,
-                    'endColumnIndex': 1
-                },
-                'cell': {
-                    'userEnteredFormat': {
-                        'wrapStrategy': 'WRAP'
-                    }
-                },
-                'fields': 'userEnteredFormat.wrapStrategy'
-            }
-        })
-        
-        # Resize column A to be wide
-        requests.append({
-            'updateDimensionProperties': {
-                'range': {
-                    'sheetId': target_sheet_id,
-                    'dimension': 'COLUMNS',
-                    'startIndex': 0,
-                    'endIndex': 1
-                },
-                'properties': {
-                    'pixelSize': 600
-                },
-                'fields': 'pixelSize'
-            }
-        })
-        
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=sheet_id,
-            body={'requests': requests}
-        ).execute()
-        
-    except Exception as e:
-        print(f"Warning: Failed to format insight sheet: {e}", file=sys.stderr)
