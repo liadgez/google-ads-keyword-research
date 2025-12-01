@@ -1,435 +1,108 @@
-# Google Ads Keyword Research Tool
-gh repo - https://github.com/liadgez/google-ads-keyword-research
+# Google Ads Keyword Research Tool (Hagakure Edition)
 
-> Production-ready keyword research tool that generates keyword ideas from any URL using the Google Ads API and automatically exports results to beautifully formatted Google Sheets.
+A powerful CLI tool for generating, clustering, and analyzing keywords for Google Ads campaigns, now with AI-powered Competitor Research.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.13-blue)](https://www.python.org/)
 
 ## ✨ Features
 
-- 🔍 **URL-based keyword research** - Analyze any website to discover relevant keywords
-- 📊 **Automatic Google Sheets export** - Results are automatically formatted and saved
-- 📈 **Real Google Ads data** - Actual search volumes, competition levels, and bid estimates
-- ⚡ **Fast & efficient** - Optimized hybrid architecture (Node.js + Python)
-- 🎨 **Modern web UI** - Beautiful, responsive interface for easy testing
-- 🔌 **Simple REST API** - Easy integration with other tools and workflows
+### 🔍 Keyword Research
+- **Google Ads API Integration**: Fetches real keyword data (volume, CPC, competition).
+- **Semantic Clustering**: Uses Sentence Transformers to group keywords by intent.
+- **Hagakure Structure**: Automatically organizes keywords into Hagakure-style ad groups.
+- **Negative Keyword Detection**: Identifies potential negative keywords automatically.
+- **Google Sheets Export**: Exports clustered data directly to Google Sheets with pivot tables.
 
-## 📊 Data Provided
-
-For each keyword discovered, you get:
-
-| Field | Description |
-|-------|-------------|
-| **Keyword** | The actual keyword phrase |
-| **Avg Monthly Searches** | Average monthly search volume |
-| **Competition** | LOW / MEDIUM / HIGH |
-| **Competition Index** | 0-100 score |
-| **Low Bid** | Minimum suggested bid (USD) |
-| **High Bid** | Maximum suggested bid (USD) |
-
-## 🏗️ Architecture
-```
-┌─────────────┐      ┌──────────────┐      ┌─────────────────┐
-│   Client    │─────▶│   FastAPI    │─────▶│  Python Logic   │
-│  (Browser)  │      │   (Python)   │      │  (Direct Call)  │
-└─────────────┘      └──────────────┘      └─────────────────┘
-                                                     │
-                                                     ▼
-                                            ┌─────────────────┐
-                                            │  Google Ads API │
-                                            │ Google Sheets   │
-                                            └─────────────────┘
-```
-
-**Why this architecture?**
-- **Pure Python**: Single language stack, easier maintenance
-- **FastAPI**: Modern, high-performance web framework
-- **Direct Execution**: No overhead from spawning subprocesses
+### 🕵️ Competitor Research (NEW!)
+- **AI-Powered Analysis**: Uses Gemini 2.0 Flash to analyze competitor websites.
+- **Competitor Discovery**: Finds direct competitors and market insights.
+- **Multi-Format Export**: Exports results to JSON, CSV, Markdown, and Google Sheets.
+- **Robust Fallbacks**: Handles timeouts and invalid URLs gracefully.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-
-- **Node.js** 18+ ([Download](https://nodejs.org/))
 - **Python** 3.13+ ([Download](https://www.python.org/))
 - **Google Cloud Project** with:
   - Google Ads API enabled
   - Google Sheets API enabled
   - OAuth 2.0 Desktop client credentials
 - **Google Ads Account** (MCC or regular)
+- **Gemini API Key** (for Competitor Research)
 
 ### Installation
 
-```bash
-# 1. Clone the repository
-git clone <your-repo-url>
-cd google-ads-scripts
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd google-ads-scripts
+   ```
 
-# 2. Create Python virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# 3. Install dependencies
-pip install fastapi uvicorn google-ads-googleads python-dotenv \
-            google-api-python-client google-auth-httplib2 \
-            google-auth-oauthlib
-```
+3. Set up environment variables:
+   Copy `.env.example` to `.env` and fill in your credentials.
+   ```bash
+   cp .env.example .env
+   ```
 
-### Configuration
-
-Create a `.env` file in the project root:
-
-```env
-GOOGLE_ADS_DEVELOPER_TOKEN=your_developer_token_here
-GOOGLE_ADS_CLIENT_ID=your_client_id.apps.googleusercontent.com
-GOOGLE_ADS_CLIENT_SECRET=your_client_secret_here
-GOOGLE_ADS_REFRESH_TOKEN=your_refresh_token_here
-GOOGLE_ADS_LOGIN_CUSTOMER_ID=1234567890
-```
-
-### Get OAuth Refresh Token
-
-The refresh token must have **both** scopes:
-- `https://www.googleapis.com/auth/adwords`
-- `https://www.googleapis.com/auth/spreadsheets`
-
-Run the automated helper:
-
-```bash
-source venv/bin/activate
-python api/run_oauth_and_update_env.py
-```
-
-### ⚡ Instant Test
-
-Want to see it in action immediately? Run this one-liner:
-
-```bash
-# Runs the CLI with default settings (Netflix, Hybrid Clustering, No Export)
-source venv/bin/activate && python cli.py
-```
-
-Or for the full interactive experience:
-
-```bash
-source venv/bin/activate
-python cli.py
-```
-
-### Start the API Server
-If you prefer the web interface or REST API:
-
-```bash
-source venv/bin/activate
-python main.py
-```
-
-Server runs on `http://localhost:3002` 🎉
+   **Required for Competitor Research:**
+   - `GEMINI_API_KEY`: Get it from [Google AI Studio](https://aistudio.google.com/apikey)
 
 ## 📖 Usage
 
-### Web UI
-
-1. Open `http://localhost:3002` in your browser
-2. Enter any website URL
-3. Click "Generate Keywords"
-4. Wait 10-30 seconds
-5. View results and click the Google Sheet link
-
-### API Endpoint
-
-**POST** `/keyword-research`
-
-**Request:**
-```json
-{
-  "url": "https://example.com",
-  "keywords": ["optional", "seed", "keywords"],
-  "languageCode": "en",
-  "locationIds": ["2840"]
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "url": "https://example.com",
-  "totalResults": 1226,
-  "sheetUrl": "https://docs.google.com/spreadsheets/d/...",
-  "keywords": [
-    {
-      "keyword": "example keyword",
-      "avgMonthlySearches": 14800,
-      "competition": "LOW",
-      "competitionIndex": 6,
-      "lowTopOfPageBidMicros": 571426,
-      "highTopOfPageBidMicros": 5620179,
-      "lowTopOfPageBid": 0.571426,
-      "highTopOfPageBid": 5.620179
-    }
-  ]
-}
-```
-
-### cURL Example
+### Keyword Research
+Generate keyword ideas and cluster them into ad groups.
 
 ```bash
-curl -X POST http://localhost:3002/keyword-research \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com"}'
+# Interactive Mode
+python cli.py
+
+# Non-Interactive (One-liner)
+python cli.py --url https://example.com --method 3 --export y
 ```
 
-## 🧪 Testing
-
-Run the integration test:
+### Competitor Research
+Analyze a competitor's website to find their competitors and market insights.
 
 ```bash
-npm test
+# Interactive Mode
+python cli.py --mode competitor
+
+# Non-Interactive (One-liner)
+python cli.py --mode competitor --url https://example.com --method 1 --export y
 ```
 
-Or manually:
-
-```bash
-source venv/bin/activate
-python api/test_keyword_planner.py
-```
-
-Expected output:
-```
-✅ Test passed – 1226 keywords generated
-📄 Sheet URL: https://docs.google.com/spreadsheets/d/...
-```
-
-## 📁 Project Structure
-
-google-ads-scripts/
-├── main.py                        # FastAPI server (46 lines)
-├── cli.py                         # Interactive CLI (120 lines)
-├── api/
-│   ├── keyword_planner.py         # Google Ads API integration (180 lines)
-│   ├── sheets_exporter.py         # Google Sheets export (290 lines)
-│   ├── clustering.py              # Advanced Clustering Engine (150 lines)
-│   ├── run_oauth_and_update_env.py # OAuth helper (108 lines)
-│   └── utils.py                   # Utilities (45 lines)
-├── public/
-│   └── index.html                 # Modern web UI (145 lines)
-├── .env                           # Credentials (git-ignored)
-└── README.md                      # This file
-
-Total: ~1000 lines of clean, optimized Python code
-
-## ⚙️ Advanced Configuration
-
-### Language Codes
-
-Supported languages (add more in `keyword_planner.py`):
-- `en` - English (1000)
-- `es` - Spanish (1003)
-- `fr` - French (1002)
-
-### Location IDs
-
-Common location IDs:
-- `2840` - United States
-- `2826` - United Kingdom
-- `2036` - Israel
-- `2250` - France
-
-[Full list of location IDs](https://developers.google.com/google-ads/api/data/geotargets)
-
-## ⚠️ API Limitations & Best Practices
-
-### Rate Limits
-
-| Service | Limit |
-|---------|-------|
-| KeywordPlanIdeaService | 1 request/second |
-| Daily quota | Check GCP Console |
-
-### Best Practices
-
-1. **Cache results** - Don't request the same URL repeatedly
-2. **Respect rate limits** - Wait 1 second between requests
-3. **Monitor quota** - Check usage in GCP Console regularly
-4. **Handle errors gracefully** - Implement retry logic with exponential backoff
-5. **Use specific URLs** - More specific URLs = better keyword suggestions
-
-### Production Deployment
-
-For production use, consider:
-
-- ✅ Add authentication (API keys, OAuth, etc.)
-- ✅ Enable HTTPS
-- ✅ Implement rate limiting
-- ✅ Add request logging
-- ✅ Set up monitoring and alerts
-- ✅ Use environment-specific configs
-- ✅ Deploy to cloud (AWS, GCP, Azure)
-
-## 🔐 Security
-
-- ✅ `.env` is git-ignored (never commit credentials)
-- ✅ OAuth tokens are stored securely
-- ✅ No hardcoded secrets in code
-- ✅ Desktop OAuth client (no web redirect vulnerabilities)
-- ⚠️ **For production**: Add authentication layer
-
-## 🐛 Troubleshooting
-
-### "Missing credentials" error
-
-**Cause**: Environment variables not set properly
-
-**Solution**:
-```bash
-# Check .env file exists and has all required variables
-cat .env
-
-# Verify no extra spaces or quotes
-```
-
-### "Sheet not created" (no sheetUrl in response)
-
-**Cause**: Refresh token missing Google Sheets scope
-
-**Solution**:
-```bash
-# Re-run OAuth helper to get new token with both scopes
-source venv/bin/activate
-python api/run_oauth_and_update_env.py
-
-# Make sure you grant BOTH scopes when authorizing
-```
-
-### "Invalid customer ID" error
-
-**Cause**: Using MCC account ID instead of regular account
-
-**Solution**:
-```bash
-# Check accounts.json exists
-cat accounts.json
-
-# Verify you're using a non-MCC account ID
-# The tool automatically finds one from accounts.json
-```
-
-### Rate limit errors
-
-**Cause**: Too many requests too quickly
-
-**Solution**:
-```bash
-# Wait at least 1 second between requests
-# Check your quota in GCP Console:
-# https://console.cloud.google.com/apis/api/googleads.googleapis.com/quotas
-```
-
-### Server won't start
-
-**Cause**: Port 3002 already in use
-
-**Solution**:
-```bash
-# Kill process on port 3002
-lsof -ti:3002 | xargs kill -9
-
-# Or change port in server.js:
-# const PORT = process.env.PORT || 3003;
-```
-
-## 📚 Resources
-
-- [Google Ads API Documentation](https://developers.google.com/google-ads/api/docs/start)
-- [Google Sheets API Documentation](https://developers.google.com/sheets/api)
-- [OAuth 2.0 for Desktop Apps](https://developers.google.com/identity/protocols/oauth2/native-app)
-- [KeywordPlanIdeaService Reference](https://developers.google.com/google-ads/api/reference/rpc/v18/KeywordPlanIdeaService)
-
-## 📝 License
-
-MIT License - feel free to use this for any purpose.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 💬 Support
-
-- **Issues**: Open an issue on GitHub
-- **Google Ads API**: [Official Support](https://developers.google.com/google-ads/api/docs/support)
-- **Questions**: Check the troubleshooting section above
-
----
-
-**Built with ❤️ using Google Ads API and Google Sheets API**
-
-## 🤖 For AI Agents & Automation: How to Use the CLI
- 
-You can run the CLI in two modes: **Interactive** (for humans) and **Non-Interactive** (for agents/scripts).
- 
-### Option 1: Non-Interactive Mode (Recommended for Agents)
- 
-Pass arguments directly to skip all prompts. This is the fastest and most reliable way for AI agents to use the tool.
- 
-```bash
-# Syntax
-python cli.py --url <URL> --method <1|2|3> --export <y|n>
- 
-# Example: Run Hybrid clustering on Walcott Radio and export to Sheets
-python cli.py --url https://www.walcottradio.com/ --method 3 --export y
-```
- 
-**Arguments:**
-- `--url`: Target website URL (required)
-- `--method`: Clustering algorithm (1=Rule, 2=ML, 3=Hybrid)
-- `--export`: Auto-export to Google Sheets (`y` or `n`)
- 
-### Option 2: Interactive Mode
- 
-If you run `python cli.py` without arguments, it will prompt for inputs interactively.
- 
-1. **URL**: Enter the target URL
-2. **Method**: Enter `1`, `2`, or `3`
-3. **Export**: Enter `y` or `n`
- 
----
- 
-## 🚫 Universal Negative Keywords
-
-The tool includes a **Universal Negative Keyword System** that works for **any website** across any industry. It automatically filters out irrelevant traffic without requiring manual configuration.
-
-**Categories Filtered:**
-1.  **Job/Career:** `job`, `hiring`, `salary`, `resume`, `intern`, etc. (Filters job seekers)
-2.  **Academic:** `homework`, `assignment`, `thesis`, `essay`, etc. (Filters students)
-3.  **Piracy:** `free download`, `cracked`, `torrent`, `nulled`, etc. (Filters illegal downloads)
-
-**How it works:**
-- Negative keywords are identified during clustering.
-- They are **excluded** from ad groups.
-- They are exported to a separate **"Negative Keywords"** tab in the Google Sheet, complete with their category (e.g., "job").
+### Options
+- `--mode`: `keyword` (default) or `competitor`
+- `--url`: Target website URL
+- `--method`: 
+  - Keyword: `1` (Rule-based), `2` (Semantic), `3` (Hybrid)
+  - Competitor: `gemini` (AI), `google` (Search API), `hybrid`
+- `--export`: `y` or `n` to export results
+- `--format`: `json`, `csv`, or `markdown` (for competitor mode)
 
 ## 📊 Google Sheets Export
 
-The tool automatically creates a comprehensive Google Sheet with:
-1.  **All Keywords:** Full list with metrics and assigned Ad Groups.
-2.  **Overview:** Summary of all clusters, volume tiers, and competition levels.
-3.  **Negative Keywords:** List of excluded terms with their category.
+The tool automatically creates comprehensive Google Sheets:
 
-The sheet is automatically made **public** (view-only) for easy sharing.
- 
-## 🧠 Advanced Parallel Clustering
- 
-The tool now runs **5 clustering algorithms in parallel** to give you deep insights into your keyword data. These are displayed in the "Overview" tab of the exported Google Sheet.
- 
-| Method | Description | Example Output |
-|--------|-------------|----------------|
-| **Primary Cluster** | The main ad group (based on selected method) | "Cb Radio" |
-| **Volume Tier** | Groups by search volume (High/Medium/Low) | "High (500K+)" |
-| **Competition Tier** | Groups by competition level (High/Medium/Low) | "Medium (34-66)" |
-| **N-gram Pattern** | Identifies dominant word patterns | "cb_*" |
- 
-This allows you to compare different grouping strategies side-by-side and pick the one that fits your campaign goals best.
-```
+**Keyword Research Sheet:**
+- **All Keywords:** Full list with metrics and assigned Ad Groups.
+- **Overview:** Pivot table summary of clusters.
+- **Negative Keywords:** List of excluded terms.
+
+**Competitor Research Sheet:**
+- **Competitors:** List of competitors with confidence scores and descriptions.
+- **Market Insight:** AI-generated analysis of the market landscape.
+
+## 🔐 Security
+- `.env` is git-ignored (never commit credentials).
+- OAuth tokens are stored securely.
+- No hardcoded secrets in code.
+
+## 📝 License
+MIT License - feel free to use this for any purpose.

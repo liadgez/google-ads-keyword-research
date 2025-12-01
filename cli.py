@@ -20,6 +20,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "api"))
 from keyword_planner import generate_keyword_ideas
 from clustering import ClusteringEngine, Cluster
 from sheets_exporter_clustered import create_and_export_clustered
+from competitor_research import CompetitorResearcher
+import asyncio
 
 console = Console()
 
@@ -60,18 +62,119 @@ def display_clusters(clusters: List[Cluster]):
     if clusters and clusters[0].negative_candidates:
         neg_count = len(clusters[0].negative_candidates)
         rprint(f"\n[bold red]⚠️  Found {neg_count} Negative Keyword Candidates[/bold red]")
-        rprint(f"[red]{', '.join(clusters[0].negative_candidates[:5])}...[/red]")
+        neg_preview = [n['keyword'] for n in clusters[0].negative_candidates[:5]]
+        rprint(f"[red]{', '.join(neg_preview)}...[/red]")
 
 import argparse
 
 def main():
     parser = argparse.ArgumentParser(description="Google Ads Keyword Research CLI")
+    parser.add_argument("--mode", choices=['keyword', 'competitor'], default='keyword', help="Mode: keyword research or competitor research")
     parser.add_argument("--url", help="Target website URL")
-    parser.add_argument("--method", type=int, choices=[1, 2, 3], help="Clustering method (1=Rule, 2=ML, 3=Hybrid)")
+    parser.add_argument("--method", type=int, choices=[1, 2, 3], help="Clustering method (1=Rule, 2=ML, 3=Hybrid) or competitor search method")
     parser.add_argument("--export", choices=['y', 'n'], help="Auto-export to Sheets (y/n)")
+    parser.add_argument("--format", choices=['json', 'csv', 'markdown'], default='json', help="Export format for competitor research")
     
     args = parser.parse_args()
+    
+    # Route to appropriate mode
+    if args.mode == 'competitor':
+        asyncio.run(competitor_research_mode(args))
+    else:
+        keyword_research_mode(args)
 
+
+async def competitor_research_mode(args):
+    """Async wrapper for competitor research."""
+    print_banner()
+    rprint("\n[bold magenta]🔍 COMPETITOR RESEARCH MODE[/bold magenta]\n")
+    
+    # Get URL
+    if args.url:
+        url = args.url
+        rprint(f"[bold green]Target URL:[/bold green] {url}")
+    else:
+        url = Prompt.ask("[bold green]Enter Website URL[/bold green]", default="https://www.netflix.com")
+    
+    # Get method
+    if args.method:
+        method_map = {1: 'gemini', 2: 'google', 3: 'hybrid'}
+        method = method_map.get(args.method, 'gemini')
+        rprint(f"[bold yellow]Search Method:[/bold yellow] {method}")
+    else:
+        rprint("\n[bold yellow]Select Search Method:[/bold yellow]")
+        rprint("1. [cyan]Gemini AI with Grounding[/cyan] (Recommended)")
+        rprint("2. [magenta]Google Custom Search API[/magenta]")
+        rprint("3. [green]Hybrid[/green] (Both methods)")
+        method_choice = IntPrompt.ask("Choice", choices=["1", "2", "3"], default=1)
+        method_map = {1: 'gemini', 2: 'google', 3: 'hybrid'}
+        method = method_map[method_choice]
+    
+    # Run analysis
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        progress.add_task(description="Analyzing competitors...", total=None)
+        
+        researcher = CompetitorResearcher()
+        result = await researcher.analyze(url, method)
+    
+    # Display results
+    rprint(f"\n[bold green]✅ Analysis Complete[/bold green]")
+    rprint(f"[bold cyan]Brand:[/bold cyan] {result.brand_info.brandName}")
+    rprint(f"[bold cyan]Keyword:[/bold cyan] {result.selected_keyword}")
+    rprint(f"[bold cyan]Competitors Found:[/bold cyan] {len(result.competitors)}")
+    
+    if result.market_insight:
+        rprint(f"\n[bold yellow]Market Insight:[/bold yellow]")
+        rprint(Panel(result.market_insight, border_style="yellow"))
+    
+    # Display competitors table
+    table = Table(title="Competitors")
+    table.add_column("Name", style="cyan")
+    table.add_column("Domain", style="magenta")
+    table.add_column("Confidence", justify="right", style="green")
+    table.add_column("Description", style="white")
+    
+    for comp in result.competitors:
+        table.add_row(
+            comp.name,
+            comp.domain,
+            f"{comp.confidence}%",
+            comp.description[:60] + "..." if len(comp.description) > 60 else comp.description
+        )
+    
+    console.print(table)
+    
+    # Export
+    should_export = False
+    if args.export:
+        should_export = (args.export == 'y')
+    else:
+        should_export = (Prompt.ask("\nExport results?", choices=["y", "n"], default="y") == "y")
+    # Export results
+    if should_export: # Use the determined should_export variable
+        output_file = researcher.export(result, format=args.format)
+        console.print(f"[green]📂 Exported to: {output_file}[/green]")
+        
+        # Google Sheets Export
+        try:
+            from api.sheets_exporter_competitor import create_and_export_competitor_analysis
+            console.print("[yellow]⠸ Creating Google Sheet...[/yellow]")
+            sheet_url = create_and_export_competitor_analysis(result)
+            if sheet_url:
+                console.print(f"[bold green]🚀 Google Sheet Created: {sheet_url}[/bold green]")
+            else:
+                console.print("[red]❌ Failed to create Google Sheet[/red]")
+        except ImportError:
+            console.print("[red]⚠️  Google Sheets exporter not found[/red]")
+        except Exception as e:
+            console.print(f"[red]❌ Error creating Google Sheet: {e}[/red]")
+
+def keyword_research_mode(args):
+    """Run keyword research and clustering."""
     print_banner()
     
     # 1. Get Input
