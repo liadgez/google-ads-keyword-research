@@ -20,6 +20,13 @@ A powerful CLI tool for generating, clustering, and analyzing keywords for Googl
 - **Multi-Format Export**: Exports results to JSON, CSV, Markdown, and Google Sheets
 - **Robust Fallbacks**: Handles timeouts and invalid URLs gracefully
 
+### 💬 WhatsApp Bot Integration (NEW!)
+- **Conversational Interface**: Interact with the tool via WhatsApp messages
+- **Real-time Results**: Get keyword research and competitor analysis on your phone
+- **Automatic Exports**: Receive Google Sheets links directly in WhatsApp
+- **Easy Commands**: Simple text commands like "research [URL]" or "competitors [URL]"
+- **Rich Formatting**: Beautiful messages with emojis, formatting, and interactive buttons
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -107,6 +114,44 @@ Market Insight:
 The market is highly competitive with established players...
 
 📊 Google Sheet: https://docs.google.com/spreadsheets/d/...
+```
+
+### WhatsApp Bot
+Interact with the tool directly from WhatsApp!
+
+**Quick Start:**
+```bash
+# 1. Configure WhatsApp credentials in .env
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_ACCESS_TOKEN=your_access_token
+WHATSAPP_VERIFY_TOKEN=myverifycode123
+
+# 2. Start the server and ngrok
+./start_whatsapp_bot.sh
+
+# 3. Send WhatsApp messages to your bot:
+"help"                              # Show available commands
+"research https://netflix.com"      # Keyword research
+"competitors https://netflix.com"   # Competitor analysis
+```
+
+**📖 Full Setup Guide:** See [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md) for detailed instructions.
+
+**Example WhatsApp Conversation:**
+```
+You: research https://shopify.com
+
+Bot: 🔍 Keyword Research Started
+     Analyzing: https://shopify.com
+     ⏳ This may take 30-60 seconds...
+
+Bot: ✅ Keyword Research Complete!
+     📊 Results Summary:
+     • Keywords Found: 1,247
+     • Ad Groups Created: 89
+     
+     📈 View Full Report:
+     https://docs.google.com/spreadsheets/d/...
 ```
 
 ### CLI Options
